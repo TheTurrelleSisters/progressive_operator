@@ -1,13 +1,13 @@
 /*
- * service-worker.js — Gold Coins Casino Lobby
+ * service-worker.js — Progressive Operator
  * Gold Coins Casino System v2.4
  * AUTO-UPDATE: Detects new version, clears old cache, reloads all clients silently.
  * Bump CACHE_VER on every release — everything else is automatic.
  */
-var CACHE_VER = 'lobby-v2.9';
+var CACHE_VER = 'prog-op-v3.2';
 
 /* Files to pre-cache on install */
-var CACHE_URLS = ['./index.html','./manifest.json','./assets/images/lobby_banner.jpg','./assets/images/straypups_splash.jpg','./assets/images/turrelle_splash.jpg','./icons/icon-192x192.png','./icons/icon-512x512.png'];
+var CACHE_URLS = ['./index.html','./manifest.json','./progressive.js','./icons/icon-192x192.png','./icons/icon-512x512.png'];
 
 /* ── INSTALL: cache files + skip waiting immediately ── */
 self.addEventListener('install', function(e) {
@@ -47,8 +47,9 @@ self.addEventListener('activate', function(e) {
         /* Tell all open clients to reload so they get fresh files */
         return self.clients.matchAll({ type: 'window' }).then(function(clients) {
           clients.forEach(function(client) {
-            if (client.url && 'navigate' in client) {
-              client.navigate(client.url);
+            if ('navigate' in client) {
+              /* Always navigate to our own index.html — never follow stale URLs */
+              client.navigate('./index.html');
             }
           });
         });
