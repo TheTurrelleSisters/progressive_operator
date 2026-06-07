@@ -32,7 +32,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 #lock-screen {
   position: fixed; inset: 0; background: var(--bg);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 500; gap: 16px;
+  z-index: 9999; gap: 16px;
 }
 #lock-title { font-size: 13px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
 #lock-logo  { font-size: 28px; font-weight: 900; color: var(--gold);
@@ -347,24 +347,21 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
   <div id="splash-ver">v2.4</div>
 </div>
 
-<script>
-// Auto-dismiss splash after 2s — also tap to skip
-function dismissSplash() {
-  var sp = document.getElementById('splash');
-  if (!sp) return;
-  /* Immediately kill all interaction on splash */
-  sp.style.pointerEvents = 'none';
-  sp.style.touchAction   = 'none';
-  sp.style.zIndex        = '-1';
-  sp.classList.add('fade-out');
-  setTimeout(function() {
-    sp.style.display = 'none';
-  }, 500);
-}
-/* Auto-dismiss after 1.8s */
-setTimeout(dismissSplash, 1800);
-</script>
 
+
+<script>
+(function(){
+  var done = false;
+  function killSplash() {
+    if (done) return; done = true;
+    var sp = document.getElementById('splash');
+    if (!sp) return;
+    sp.style.cssText += ';pointer-events:none!important;touch-action:none!important;z-index:-999!important;opacity:0;transition:opacity 0.3s';
+    setTimeout(function(){ sp.style.display='none'; }, 350);
+  }
+  setTimeout(killSplash, 1800);
+}());
+</script>
 <div id="lock-screen">
   <div id="lock-title">Stray-Pup LLC</div>
   <div id="lock-logo">PROGRESSIVE<br>OPERATOR</div>
@@ -441,9 +438,12 @@ var _client     = null;
 var _channel    = null;
 var _connected  = false;
 var _row        = { value:500, seed:500, ceiling:9999, contrib_rate:0.02, hit_count:0 };
-var _hits       = [];
-var _pinBuf     = '';
-var _activeTab  = 'dashboard';
+var _hits          = [];
+var _messages      = [];
+var _pinBuf        = '';
+var _activeTab     = 'dashboard';
+var _presenceCount = 0;
+var _forceIsArmed  = false;
 
 /* ══════════════════════════════════════════════════════════════════════
    PIN
@@ -537,7 +537,7 @@ function subscribePresence() {
     })
     .on('presence', { event: 'leave' }, function() {
       var count = Object.keys(presenceCh.presenceState()).length;
-      var _dc=document.getElementById('dash-conn');document.getElementById('conn-count').textContent=count;if(_dc)_dc.textContent=count;
+      _dc=document.getElementById('dash-conn');document.getElementById('conn-count').textContent=count;if(_dc)_dc.textContent=count;
     })
     .subscribe(function(status) {
       if (status === 'SUBSCRIBED') {
@@ -650,7 +650,6 @@ function renderMessages() {
     msgList + '</div>';
 }
 
-var _messages = [];
 
 function fetchMessages() {
   if (!_client) return;
@@ -837,7 +836,6 @@ function setCustomValue() {
   });
 }
 
-var _forceIsArmed = false;
 
 function forceHit() {
   if (!_connected) { toast('Not connected'); return; }
