@@ -1,5 +1,5 @@
-var CACHE_VER  = 'prog-op-v1.2';
-var CACHE_URLS = ['./index.html', './manifest.json'];
+var CACHE_VER  = 'progress-v2.4';
+var CACHE_URLS = ['./index.html', './manifest.json', './icons/icon-192x192.png', './icons/icon-512x512.png'];
 self.addEventListener('install', function(e) {
   e.waitUntil(caches.open(CACHE_VER).then(function(c) { return c.addAll(CACHE_URLS); }).then(function() { return self.skipWaiting(); }));
 });
