@@ -1,13 +1,13 @@
 /*
- * service-worker.js — Progressive Operator
+ * service-worker.js — Turrelle Sisters Big Munny
  * Gold Coins Casino System v2.4
  * AUTO-UPDATE: Detects new version, clears old cache, reloads all clients silently.
  * Bump CACHE_VER on every release — everything else is automatic.
  */
-var CACHE_VER = 'prog-op-v3.1';
+var CACHE_VER = 'tsbigmunny-v2.8';
 
 /* Files to pre-cache on install */
-var CACHE_URLS = ['./index.html','./manifest.json','./progressive.js','./icons/icon-192x192.png','./icons/icon-512x512.png'];
+var CACHE_URLS = ['./index.html','./style.css','./progressive.js','./paytable.js','./state.js','./game.js','./bonuses.js','./ui.js','./operator.js','./cashout.js','./audio.js'];
 
 /* ── INSTALL: cache files + skip waiting immediately ── */
 self.addEventListener('install', function(e) {
