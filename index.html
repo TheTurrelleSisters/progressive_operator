@@ -32,7 +32,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 #lock-screen {
   position: fixed; inset: 0; background: var(--bg);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 1000; gap: 16px;
+  z-index: 100; gap: 16px;
 }
 #lock-title { font-size: 13px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
 #lock-logo  { font-size: 28px; font-weight: 900; color: var(--gold);
@@ -348,16 +348,29 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
 </div>
 
 <script>
-// Auto-dismiss after loading bar completes (~2.8s)
-setTimeout(function() {
+// Auto-dismiss splash after 2s — also tap to skip
+function dismissSplash() {
   var sp = document.getElementById('splash');
-  if (sp) {
-    sp.classList.add('fade-out');
-    setTimeout(function() {
-      if (sp) sp.style.display = 'none';
-    }, 900);
-  }
-}, 2800);
+  if (!sp || sp.style.display === 'none') return;
+  sp.classList.add('fade-out');
+  setTimeout(function() {
+    if (sp) sp.style.display = 'none';
+    // Make sure lock screen is visible
+    var ls = document.getElementById('lock-screen');
+    if (ls) ls.style.display = 'flex';
+  }, 600);
+}
+// Auto-dismiss after 2 seconds
+setTimeout(dismissSplash, 2000);
+// Tap anywhere to skip
+document.addEventListener('click', function onTap() {
+  dismissSplash();
+  document.removeEventListener('click', onTap);
+});
+document.addEventListener('touchend', function onTouch() {
+  dismissSplash();
+  document.removeEventListener('touchend', onTouch);
+});
 </script>
 
 <div id="lock-screen">
