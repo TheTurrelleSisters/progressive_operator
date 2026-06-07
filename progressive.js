@@ -82,10 +82,15 @@ var Progressive = (function () {
   function _checkArmedCommand() {
     _client.from('progressive_commands')
       .select('*').eq('status', 'armed').limit(1).then(function (res) {
-        if (res.error || !res.data || !res.data.length) return;
+        if (res.error) {
+          console.warn('[Progressive] commands table error:', res.error.message,
+            '- Run SQL queries A-F from SUPABASE_SETUP.md to create it.');
+          return;
+        }
+        if (!res.data || !res.data.length) return;
         _forceArmed     = true;
         _forceCommandId = res.data[0].id;
-        console.log('[Progressive] Force jackpot already armed — ready on next spin.');
+        console.log('[Progressive] Force jackpot ARMED on load — fires on next spin!');
       });
   }
 
@@ -107,7 +112,7 @@ var Progressive = (function () {
   }
 
   function _subscribeCommands() {
-    _client.channel('prog-commands')
+    _client.channel('prog-commands-' + _sessionKey.substr(0,4))
       /* New command inserted — arm fires */
       .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_commands' },
         function (p) {
