@@ -1,13 +1,13 @@
 /*
- * service-worker.js — Turrelle Sisters Big Munny
+ * service-worker.js — Gold Coins Casino Lobby
  * Gold Coins Casino System v2.4
  * AUTO-UPDATE: Detects new version, clears old cache, reloads all clients silently.
  * Bump CACHE_VER on every release — everything else is automatic.
  */
-var CACHE_VER = 'tsbigmunny-v2.8';
+var CACHE_VER = 'lobby-v2.9';
 
 /* Files to pre-cache on install */
-var CACHE_URLS = ['./index.html','./style.css','./progressive.js','./paytable.js','./state.js','./game.js','./bonuses.js','./ui.js','./operator.js','./cashout.js','./audio.js'];
+var CACHE_URLS = ['./index.html','./manifest.json','./assets/images/lobby_banner.jpg','./assets/images/straypups_splash.jpg','./assets/images/turrelle_splash.jpg','./icons/icon-192x192.png','./icons/icon-512x512.png'];
 
 /* ── INSTALL: cache files + skip waiting immediately ── */
 self.addEventListener('install', function(e) {
