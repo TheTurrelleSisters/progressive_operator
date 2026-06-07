@@ -413,6 +413,7 @@ setTimeout(function() {
     <div class="tab" onclick="showTab('settings')">Settings</div>
     <div class="tab" onclick="showTab('history')">History</div>
     <div class="tab" onclick="showTab('force')">Force</div>
+    <div class="tab" onclick="showTab('messages')">&#128226; MSG</div>
   </div>
 
   <div id="tab-content">
@@ -479,6 +480,7 @@ function initSupabase() {
       document.getElementById('conn-badge').textContent = 'LIVE';
       fetchRow();
       fetchHits();
+      fetchMessages();
       subscribeRealtime();
       subscribePresence();
       subscribeCommands();
@@ -594,10 +596,93 @@ function updatePotDisplay() {
 function showTab(name) {
   _activeTab = name;
   document.querySelectorAll('.tab').forEach(function(t, i) {
-    var names = ['dashboard','settings','history','force'];
+    var names = ['dashboard','settings','history','force','messages'];
     t.classList.toggle('active', names[i] === name);
   });
   renderTab();
+}
+
+
+/* ── Messages ── */
+function renderMessages() {
+  var msgList = '';
+  if (_messages && _messages.length > 0) {
+    _messages.forEach(function(m) {
+      var icons = { general:'&#128226;', jackpot:'&#127922;', event:'&#9889;', bonus:'&#127873;' };
+      msgList += '<div class="hit-row" style="margin-bottom:8px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="font-size:16px">' + (icons[m.type]||'&#128226;') + '</div>' +
+        '<div style="font-size:9px;color:var(--dim)">' + _ts(m.created_at) + '</div>' +
+        '<button onclick="deleteMessage(' + m.id + ')" style="background:none;border:none;color:#ff2244;font-size:14px;cursor:pointer">&#10005;</button>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--text);margin-top:6px;font-family:Arial,sans-serif;font-weight:normal;line-height:1.5">' + m.message + '</div>' +
+        '<div style="font-size:9px;color:var(--gold);margin-top:4px;letter-spacing:1px">' + (m.type||'general').toUpperCase() + '</div>' +
+        '</div>';
+    });
+  } else {
+    msgList = '<div style="color:var(--dim);font-size:12px;margin-bottom:14px">No messages sent yet.</div>';
+  }
+
+  return '<div class="section"><div class="sec-title">&#128226; Broadcast Message</div>' +
+    '<div style="margin-bottom:10px">' +
+    '<div class="prop-row"><div class="prop-name">Type</div>' +
+    '<select id="msg-type" style="width:160px;background:#0d0d1a;border:1px solid #444;border-radius:4px;color:#ffd700;font-size:11px;padding:5px 8px">' +
+    '<option value="general">&#128226; General</option>' +
+    '<option value="jackpot">&#127922; Jackpot Alert</option>' +
+    '<option value="event">&#9889; Special Event</option>' +
+    '<option value="bonus">&#127873; Bonus Offer</option>' +
+    '</select></div>' +
+    '<div style="margin-top:8px">' +
+    '<textarea id="msg-text" placeholder="Type your message to all players..." ' +
+    'style="width:100%;height:80px;background:#0d0d1a;border:1.5px solid #444;border-radius:6px;' +
+    'color:#ffd700;font-size:12px;padding:8px;resize:none;outline:none;font-family:Arial,sans-serif"></textarea>' +
+    '</div>' +
+    '<button class="btn btn-gold btn-full" style="margin-top:8px" onclick="sendMessage()">&#9889; SEND TO ALL PLAYERS</button>' +
+    '</div>' +
+    '<div class="sec-title" style="margin-top:4px">Sent Messages</div>' +
+    '<button class="btn btn-green" style="width:100%;padding:8px;margin-bottom:10px;font-size:10px" ' +
+    'onclick="fetchMessages();toast('Refreshed')">REFRESH</button>' +
+    msgList + '</div>';
+}
+
+var _messages = [];
+
+function fetchMessages() {
+  if (!_client) return;
+  _client.from('broadcast_messages')
+    .select('*').order('id', { ascending: false }).limit(20)
+    .then(function(res) {
+      if (res.error) return;
+      _messages = res.data || [];
+      if (_activeTab === 'messages') renderTab();
+    });
+}
+
+function sendMessage() {
+  if (!_connected) { toast('Not connected'); return; }
+  var msg  = document.getElementById('msg-text');
+  var type = document.getElementById('msg-type');
+  if (!msg || !msg.value.trim()) { toast('Please type a message'); return; }
+  _client.from('broadcast_messages').insert({
+    message:    msg.value.trim(),
+    type:       type ? type.value : 'general',
+    created_by: 'operator'
+  }).then(function(res) {
+    if (res.error) { toast('Send failed: ' + res.error.message); return; }
+    msg.value = '';
+    toast('&#9889; Message sent to all players!');
+    fetchMessages();
+  });
+}
+
+function deleteMessage(id) {
+  if (!_connected) return;
+  if (!confirm('Delete this message?')) return;
+  _client.from('broadcast_messages').delete().eq('id', id).then(function(res) {
+    if (res.error) { toast('Delete failed'); return; }
+    toast('Message deleted');
+    fetchMessages();
+  });
 }
 
 function renderTab() {
@@ -606,6 +691,7 @@ function renderTab() {
   else if (_activeTab === 'settings')  el.innerHTML = renderSettings();
   else if (_activeTab === 'history')   el.innerHTML = renderHistory();
   else if (_activeTab === 'force')     el.innerHTML = renderForce();
+  else if (_activeTab === 'messages')  el.innerHTML = renderMessages();
 }
 
 /* ── Dashboard ── */

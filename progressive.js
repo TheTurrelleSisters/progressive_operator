@@ -97,6 +97,29 @@ var Progressive = (function () {
   /* ═══════════════════════════════════════════════════════════════
      REALTIME: VALUE + COMMANDS
      ═══════════════════════════════════════════════════════════════ */
+  /* Subscribe to hits — show ATTITUDE CHECK on non-winner devices */
+  function _subscribeHits() {
+    _client.channel('prog-hits-notify')
+      .on('postgres_changes', {
+        event:  'INSERT',
+        schema: 'public',
+        table:  'progressive_hits'
+      }, function (p) {
+        if (!p.new) return;
+        /* Only show if WE didn't just win (check within 5s window) */
+        if (_justWon) return;
+        if (_onForceNotify) {
+          _onForceNotify(
+            parseFloat(p.new.amount) || 0,
+            p.new.game_id || 'another game'
+          );
+        }
+      })
+      .subscribe();
+  }
+
+  var _justWon = false; /* Flag: set when THIS device wins, cleared after 5s */
+
   function _subscribeValue() {
     _client.channel('prog-value')
       .on('postgres_changes', { event:'UPDATE', schema:'public', table:'progressive', filter:'id=eq.1' },
@@ -219,6 +242,7 @@ var Progressive = (function () {
           return;
         }
         /* We won! Reset the pot */
+        _justWon = true; setTimeout(function(){ _justWon=false; }, 5000);
         _localValue = _seed;
         _notifyValue();
         _forceArmed = false;
@@ -243,8 +267,13 @@ var Progressive = (function () {
         _fetchRow(function () {
           _subscribeValue();
           _subscribeCommands();
+          _subscribeHits();
           _subscribePresence();
           _checkArmedCommand();
+          _subscribeMessages();
+          _checkUnreadMessages();
+          /* Re-fetch config every 60s to pick up operator ceiling/seed changes */
+          setInterval(function() { _fetchRow(null); }, 60000);
           if (onReady) onReady();
         });
       } catch (e) {
@@ -263,7 +292,11 @@ var Progressive = (function () {
   function contribute(betAmt) {
     if (!betAmt || betAmt <= 0) return false;
     var addition = betAmt * _contribRate;
-    _localValue  = Math.min(_localValue + addition, _ceiling);
+    /* Allow pot to grow freely — ceiling is a must-hit-by MAX, not a hard stop.
+       Jackpot triggers via bingo pattern (Class II) at any time regardless of pot size. */
+    _localValue  = _localValue + addition;
+    /* Visual cap at ceiling for display — pot shows ceiling value when exceeded */
+    if (_localValue > _ceiling) _localValue = _ceiling;
     _notifyValue();
     if (_connected && _client) {
       _pendingAdd += addition;
@@ -289,6 +322,9 @@ var Progressive = (function () {
     var hitAmt  = parseFloat(_localValue.toFixed(2));
     _localValue = _seed;
     _notifyValue();
+    /* Suppress ATTITUDE CHECK on this device for 5 seconds */
+    _justWon = true;
+    setTimeout(function() { _justWon = false; }, 5000);
     if (_connected && _client) {
       var rec = {
         game_id: PROG_GAME_ID, denom: PROG_DENOM, amount: hitAmt,
@@ -298,6 +334,8 @@ var Progressive = (function () {
       };
       _client.rpc('progressive_hit', { reset_to: _seed });
       _client.from('progressive_hits').insert(rec);
+      /* Re-fetch config after hit to ensure ceiling/seed are fresh */
+      setTimeout(function() { _fetchRow(null); }, 1000);
     }
     return hitAmt;
   }
@@ -309,6 +347,68 @@ var Progressive = (function () {
   function getPresenceCount()     { return _presenceCount; }
   function isForceArmed()         { return _forceArmed; }
   function getSessionKey()        { return _sessionKey; }
+
+
+  /* ═══════════════════════════════════════════════════════════════════
+     BROADCAST MESSAGES
+     Live players get notified instantly via Realtime.
+     Offline players see unread messages on next game load.
+     ═══════════════════════════════════════════════════════════════════ */
+  var _messageListeners  = [];
+  var _lastSeenMessageId = 0;
+  var _SEEN_KEY          = 'prog_last_msg_' + PROG_GAME_ID;
+
+  function _loadLastSeen() {
+    try {
+      var v = localStorage.getItem(_SEEN_KEY);
+      if (v) _lastSeenMessageId = parseInt(v, 10) || 0;
+    } catch(e) {}
+  }
+
+  function _saveLastSeen(id) {
+    _lastSeenMessageId = id;
+    try { localStorage.setItem(_SEEN_KEY, String(id)); } catch(e) {}
+  }
+
+  function _notifyMessage(msg) {
+    for (var i = 0; i < _messageListeners.length; i++) {
+      try { _messageListeners[i](msg); } catch(e) {}
+    }
+    _saveLastSeen(msg.id);
+  }
+
+  /* Subscribe to new messages in realtime */
+  function _subscribeMessages() {
+    _client.channel('broadcast-messages')
+      .on('postgres_changes', {
+        event:  'INSERT',
+        schema: 'public',
+        table:  'broadcast_messages'
+      }, function(p) {
+        if (!p.new) return;
+        _notifyMessage(p.new);
+      })
+      .subscribe();
+  }
+
+  /* On load: fetch any messages player hasn't seen yet */
+  function _checkUnreadMessages() {
+    _loadLastSeen();
+    _client.from('broadcast_messages')
+      .select('*')
+      .gt('id', _lastSeenMessageId)
+      .order('id', { ascending: true })
+      .then(function(res) {
+        if (res.error || !res.data || !res.data.length) return;
+        /* Show messages with a small delay between each */
+        res.data.forEach(function(msg, i) {
+          setTimeout(function() { _notifyMessage(msg); }, i * 4000);
+        });
+      });
+  }
+
+  /* PUBLIC: register callback for incoming messages */
+  function onMessage(fn) { _messageListeners.push(fn); }
 
   function onChange(fn)           { _valueListeners.push(fn); fn(_localValue); }
   function onPresenceChange(fn)   { _presenceListeners.push(fn); fn(_presenceCount); }
@@ -331,6 +431,7 @@ var Progressive = (function () {
     getSessionKey:    getSessionKey,
     onChange:         onChange,
     onPresenceChange: onPresenceChange,
+    onMessage:        onMessage,
     onForceWin:       onForceWin,
     onForceNotify:    onForceNotify
   };
