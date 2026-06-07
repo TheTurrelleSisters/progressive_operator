@@ -207,7 +207,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
       <div id="pot-lbl">&#9733; Current Jackpot</div>
       <div id="pot-val">$500.00</div>
     </div>
-    <div id="pot-meta">
+    <div id="conn-count-box" style="background:rgba(0,255,136,.08);border:1px solid #00ff8855;border-radius:8px;padding:4px 10px;text-align:center;margin-bottom:6px"><div style="font-size:8px;letter-spacing:2px;color:#00ff88">CONNECTED</div><div id="conn-count" style="font-size:22px;font-weight:900;color:#00ff88;font-family:Arial Black,Arial,sans-serif">--</div><div style="font-size:7px;color:#448866;letter-spacing:1px">DEVICES</div></div><div id="pot-meta">
       <div id="pot-ceiling-disp">Cap: $9,999.00</div>
       <div id="pot-seed-disp">Seed: $500.00</div>
       <div id="pot-hits-disp">Hits: 0</div>
@@ -286,6 +286,7 @@ function initSupabase() {
       fetchRow();
       fetchHits();
       subscribeRealtime();
+      subscribePresence();
     } catch(e) {
       setOffline();
     }
@@ -315,6 +316,32 @@ function fetchHits() {
     _hits = res.data || [];
     if (_activeTab === 'history') renderTab();
   });
+}
+
+
+function subscribePresence() {
+  var sessionKey = 'operator_' + Math.random().toString(36).substr(2,9);
+  var presenceCh = _client.channel('presence-lobby', {
+    config: { presence: { key: sessionKey } }
+  });
+  presenceCh
+    .on('presence', { event: 'sync' }, function() {
+      var count = Object.keys(presenceCh.presenceState()).length;
+      var _c=Object.keys(presenceCh.presenceState()).length;document.getElementById('conn-count').textContent=_c;var dc=document.getElementById('dash-conn');if(dc)dc.textContent=_c;
+    })
+    .on('presence', { event: 'join' }, function() {
+      var count = Object.keys(presenceCh.presenceState()).length;
+      var _dc=document.getElementById('dash-conn');document.getElementById('conn-count').textContent=count;if(_dc)_dc.textContent=count;
+    })
+    .on('presence', { event: 'leave' }, function() {
+      var count = Object.keys(presenceCh.presenceState()).length;
+      var _dc=document.getElementById('dash-conn');document.getElementById('conn-count').textContent=count;if(_dc)_dc.textContent=count;
+    })
+    .subscribe(function(status) {
+      if (status === 'SUBSCRIBED') {
+        presenceCh.track({ gameId: 'operator', joinedAt: new Date().toISOString() });
+      }
+    });
 }
 
 function subscribeRealtime() {
@@ -371,6 +398,7 @@ function renderDashboard() {
     '<div class="stat-card"><div class="stat-val">$' + Number(_row.ceiling).toFixed(0) + '</div><div class="stat-lbl">Must-Hit Cap</div></div>' +
     '<div class="stat-card"><div class="stat-val">' + ((_row.contrib_rate || 0) * 100).toFixed(1) + '%</div><div class="stat-lbl">Contrib Rate</div></div>' +
     '<div class="stat-card"><div class="stat-val">' + (_row.hit_count || 0) + '</div><div class="stat-lbl">Total Hits</div></div>' +
+    '<div class="stat-card"><div class="stat-val" id="dash-conn">--</div><div class="stat-lbl">Connected</div></div>' +
     '</div></div>' +
     '<div class="section"><div class="sec-title">Last Hit</div>' +
     (_hits.length > 0

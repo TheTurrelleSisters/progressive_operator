@@ -19,8 +19,8 @@
    2. Settings → API → copy Project URL + anon key
    3. Run SQL from SUPABASE_SETUP.md to create tables + RPC functions
    ────────────────────────────────────────────────────────────────────── */
-var SUPABASE_URL      = 'https://YOUR_PROJECT_REF.supabase.co';
-var SUPABASE_ANON_KEY = 'YOUR_ANON_PUBLIC_KEY';
+var SUPABASE_URL      = 'https://gdmmoeggkqsvqnqyrubx.supabase.co';
+var SUPABASE_ANON_KEY = 'sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd';
 
 var PROG_GAME_ID = (typeof PROG_GAME_ID !== 'undefined') ? PROG_GAME_ID : 'straypups';
 var PROG_DENOM   = (typeof PROG_DENOM   !== 'undefined') ? PROG_DENOM   : 1.00;
@@ -118,6 +118,7 @@ var Progressive = (function () {
         _connected = true;
         _fetchRow(function () {
           _subscribe();
+          _startPresence();
           if (typeof onReady === 'function') onReady();
         });
       } catch (e) {
@@ -166,6 +167,7 @@ var Progressive = (function () {
   return {
     init: init, contribute: contribute, hit: hit,
     mustHit: mustHit, getDisplay: getDisplay,
-    getValue: getValue, onChange: onChange, isConnected: isConnected
+    getValue: getValue, onChange: onChange, isConnected: isConnected,
+    getPresenceCount: getPresenceCount, onPresenceChange: onPresenceChange
   };
 }());
