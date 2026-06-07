@@ -287,6 +287,7 @@ function initSupabase() {
       fetchHits();
       subscribeRealtime();
       subscribePresence();
+      subscribeCommands();
     } catch(e) {
       setOffline();
     }
@@ -344,6 +345,26 @@ function subscribePresence() {
     });
 }
 
+function subscribeCommands() {
+  _client.channel('op-commands')
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_commands' }, function(p) {
+      if (p.new && p.new.status === 'armed') {
+        var el = document.getElementById('armed-status');
+        if (el) { el.textContent = 'ARMED'; el.style.color = '#ff4400'; }
+        toast('&#9889; Force jackpot armed!');
+      }
+    })
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'progressive_commands' }, function(p) {
+      if (p.new && p.new.status === 'won') {
+        var el = document.getElementById('armed-status');
+        if (el) { el.textContent = 'HIT!'; el.style.color = '#00ff88'; }
+        toast('&#127881; Force jackpot WON by ' + (p.new.winner_game||'player') + '! $' + Number(p.new.winner_amt||0).toFixed(2));
+        fetchRow(); fetchHits();
+      }
+    })
+    .subscribe();
+}
+
 function subscribeRealtime() {
   _channel = _client.channel('op-watch')
     .on('postgres_changes', { event:'UPDATE', schema:'public', table:'progressive', filter:'id=eq.1' }, function(p) {
@@ -399,6 +420,7 @@ function renderDashboard() {
     '<div class="stat-card"><div class="stat-val">' + ((_row.contrib_rate || 0) * 100).toFixed(1) + '%</div><div class="stat-lbl">Contrib Rate</div></div>' +
     '<div class="stat-card"><div class="stat-val">' + (_row.hit_count || 0) + '</div><div class="stat-lbl">Total Hits</div></div>' +
     '<div class="stat-card"><div class="stat-val" id="dash-conn">--</div><div class="stat-lbl">Connected</div></div>' +
+    '<div class="stat-card" id="armed-card" style="border-color:#ff4400"><div class="stat-val" id="armed-status" style="font-size:14px">READY</div><div class="stat-lbl">Force JP</div></div>' +
     '</div></div>' +
     '<div class="section"><div class="sec-title">Last Hit</div>' +
     (_hits.length > 0
@@ -503,17 +525,12 @@ function setCustomValue() {
 
 function forceHit() {
   if (!_connected) { toast('Not connected'); return; }
-  if (!confirm('Force a jackpot hit of $' + Number(_row.value).toFixed(2) + '?')) return;
-  var rec = {
-    game_id: 'operator_force', denom: 0,
-    amount: _row.value, pattern: 'Operator Force Hit', balls: 0, bet: 0
-  };
-  _client.from('progressive_hits').insert(rec).then(function() {
-    _client.rpc('progressive_hit', { reset_to: _row.seed }).then(function(res) {
-      if (res.error) { toast('Force failed'); return; }
-      toast('Jackpot forced — pot reset');
-      fetchRow(); fetchHits();
-    });
+  if (_presenceCount <= 1) { toast('No players connected to receive the force win'); return; }
+  if (!confirm('ARM a force jackpot? The next player to spin will win $' + Number(_row.value).toFixed(2) + '!')) return;
+  _client.rpc('arm_force_jackpot').then(function(res) {
+    if (res.error) { toast('Arm failed: ' + res.error.message); return; }
+    toast('&#9889; FORCE JACKPOT ARMED! Next spin wins!');
+    renderTab();
   });
 }
 

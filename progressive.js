@@ -1,115 +1,234 @@
 /*
  * progressive.js — Virtual Progressive Controller
  * Stray-Pup LLC / The Turrelle Sisters LLC
- * v1.0 | ES5 — no arrow functions, no const/let, no backticks
- *
- * Backend: Supabase (free tier, no credit card required)
- * One shared pot across all games on the same Supabase project.
- * See SUPABASE_SETUP.md for step-by-step setup.
- *
- * HOW TO USE — add before this script in each game's index.html:
- *   <script>
- *     var PROG_GAME_ID = 'straypups_5d';
- *     var PROG_DENOM   = 5.00;
- *   </script>
+ * v1.2 — Force jackpot, ATTITUDE CHECK, presence, clean rewrite
+ * ES5 only. No arrow functions. No const/let. No backticks.
  */
 
-/* ── SUPABASE CONFIG ─────────────────────────────────────────────────────
-   1. supabase.com → New project (free, no card)
-   2. Settings → API → copy Project URL + anon key
-   3. Run SQL from SUPABASE_SETUP.md to create tables + RPC functions
-   ────────────────────────────────────────────────────────────────────── */
 var SUPABASE_URL      = 'https://gdmmoeggkqsvqnqyrubx.supabase.co';
 var SUPABASE_ANON_KEY = 'sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd';
 
-var PROG_GAME_ID = (typeof PROG_GAME_ID !== 'undefined') ? PROG_GAME_ID : 'straypups';
+/* Per-game identity — set via inline script BEFORE this file loads */
+var PROG_GAME_ID = (typeof PROG_GAME_ID !== 'undefined') ? PROG_GAME_ID : 'unknown';
 var PROG_DENOM   = (typeof PROG_DENOM   !== 'undefined') ? PROG_DENOM   : 1.00;
 
-var PROG_DEFAULTS = {
-  seed:        500.00,
-  ceiling:     9999.00,
-  contribRate: 0.02
-};
-
 var Progressive = (function () {
-  var _client      = null;
-  var _channel     = null;
-  var _localValue  = PROG_DEFAULTS.seed;
-  var _seed        = PROG_DEFAULTS.seed;
-  var _ceiling     = PROG_DEFAULTS.ceiling;
-  var _contribRate = PROG_DEFAULTS.contribRate;
-  var _connected   = false;
-  var _listeners   = [];
-  var _rowId       = 1;
-  var _pendingAdd  = 0;
-  var _flushTimer  = null;
 
+  /* ── Private state ── */
+  var _client           = null;
+  var _connected        = false;
+  var _localValue       = 500.00;
+  var _seed             = 500.00;
+  var _ceiling          = 9999.00;
+  var _contribRate      = 0.02;
+  var _pendingAdd       = 0;
+  var _flushTimer       = null;
+  var _valueListeners   = [];
+  var _presenceChannel  = null;
+  var _presenceCount    = 0;
+  var _presenceListeners= [];
+  var _sessionKey       = 'sess_' + Math.random().toString(36).substr(2, 9);
+
+  /* ── Force jackpot state ── */
+  var _forceArmed       = false;   // operator has armed a force jackpot
+  var _forceCommandId   = null;    // ID of the armed command row
+  var _forceClaimed     = false;   // this session has claimed the force win
+  var _onForceWin       = null;    // callback: function(amt) — called on THIS device when it wins
+  var _onForceNotify    = null;    // callback: function(amt, winnerGame) — ATTITUDE CHECK on others
+
+  /* ═══════════════════════════════════════════════════════════════
+     SDK LOADER
+     ═══════════════════════════════════════════════════════════════ */
   function _loadSDK(cb) {
-    if (typeof window.supabase !== 'undefined') { cb(); return; }
+    if (typeof window !== 'undefined' && window.supabase) { cb(); return; }
     var s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
     s.onload  = cb;
-    s.onerror = function () { console.warn('[Progressive] SDK load failed.'); };
+    s.onerror = function () { console.warn('[Progressive] SDK load failed — offline.'); };
     document.head.appendChild(s);
   }
 
+  /* ═══════════════════════════════════════════════════════════════
+     NOTIFY HELPERS
+     ═══════════════════════════════════════════════════════════════ */
+  function _notifyValue() {
+    for (var i = 0; i < _valueListeners.length; i++) {
+      try { _valueListeners[i](_localValue); } catch (e) {}
+    }
+  }
+  function _notifyPresence() {
+    for (var i = 0; i < _presenceListeners.length; i++) {
+      try { _presenceListeners[i](_presenceCount); } catch (e) {}
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     DB FETCH
+     ═══════════════════════════════════════════════════════════════ */
   function _fetchRow(cb) {
-    _client
-      .from('progressive')
-      .select('*')
-      .eq('id', _rowId)
-      .single()
-      .then(function (res) {
-        if (res.error) { console.warn('[Progressive] fetch error', res.error); return; }
-        var d = res.data;
-        _localValue  = d.value;
-        _seed        = d.seed;
-        _ceiling     = d.ceiling;
-        _contribRate = d.contrib_rate;
-        _notify();
-        if (typeof cb === 'function') cb();
+    _client.from('progressive').select('*').eq('id', 1).single().then(function (res) {
+      if (res.error) { console.warn('[Progressive] fetchRow:', res.error.message); if (cb) cb(); return; }
+      var d = res.data;
+      _localValue  = parseFloat(d.value)        || _seed;
+      _seed        = parseFloat(d.seed)         || _seed;
+      _ceiling     = parseFloat(d.ceiling)      || _ceiling;
+      _contribRate = parseFloat(d.contrib_rate) || _contribRate;
+      _notifyValue();
+      if (cb) cb();
+    });
+  }
+
+  /* Check if a force jackpot is already armed when we first connect */
+  function _checkArmedCommand() {
+    _client.from('progressive_commands')
+      .select('*').eq('status', 'armed').limit(1).then(function (res) {
+        if (res.error || !res.data || !res.data.length) return;
+        _forceArmed     = true;
+        _forceCommandId = res.data[0].id;
+        console.log('[Progressive] Force jackpot already armed — ready on next spin.');
       });
   }
 
-  function _subscribe() {
-    _channel = _client
-      .channel('progressive-row')
-      .on('postgres_changes', {
-        event:  'UPDATE',
-        schema: 'public',
-        table:  'progressive',
-        filter: 'id=eq.' + _rowId
-      }, function (payload) {
-        var d = payload.new;
-        if (!d) return;
-        _localValue  = d.value;
-        _seed        = d.seed;
-        _ceiling     = d.ceiling;
-        _contribRate = d.contrib_rate;
-        _notify();
-      })
+  /* ═══════════════════════════════════════════════════════════════
+     REALTIME: VALUE + COMMANDS
+     ═══════════════════════════════════════════════════════════════ */
+  function _subscribeValue() {
+    _client.channel('prog-value')
+      .on('postgres_changes', { event:'UPDATE', schema:'public', table:'progressive', filter:'id=eq.1' },
+        function (p) {
+          if (!p.new) return;
+          _localValue  = parseFloat(p.new.value)        || _localValue;
+          _seed        = parseFloat(p.new.seed)         || _seed;
+          _ceiling     = parseFloat(p.new.ceiling)      || _ceiling;
+          _contribRate = parseFloat(p.new.contrib_rate) || _contribRate;
+          _notifyValue();
+        })
       .subscribe();
   }
 
+  function _subscribeCommands() {
+    _client.channel('prog-commands')
+      /* New command inserted — arm fires */
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_commands' },
+        function (p) {
+          if (!p.new || p.new.command !== 'force_jackpot' || p.new.status !== 'armed') return;
+          _forceArmed     = true;
+          _forceCommandId = p.new.id;
+          _forceClaimed   = false;
+          console.log('[Progressive] FORCE JACKPOT ARMED — fires on next spin!');
+        })
+      /* Command updated — winner claimed */
+      .on('postgres_changes', { event:'UPDATE', schema:'public', table:'progressive_commands' },
+        function (p) {
+          if (!p.new || p.new.command !== 'force_jackpot') return;
+          if (p.new.status === 'won') {
+            /* Was it us? */
+            if (p.new.winner_session === _sessionKey) {
+              /* We already handled this in _claimForceWin */
+              return;
+            }
+            /* Someone else won — ATTITUDE CHECK */
+            _forceArmed   = false;
+            _forceCommandId = null;
+            if (_onForceNotify) {
+              _onForceNotify(parseFloat(p.new.winner_amt) || 0, p.new.winner_game || 'another game');
+            }
+          }
+        })
+      .subscribe();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     PRESENCE
+     ═══════════════════════════════════════════════════════════════ */
+  function _subscribePresence() {
+    _presenceChannel = _client.channel('presence-lobby', {
+      config: { presence: { key: _sessionKey } }
+    });
+    _presenceChannel
+      .on('presence', { event:'sync' }, function () {
+        _presenceCount = Object.keys(_presenceChannel.presenceState()).length;
+        _notifyPresence();
+      })
+      .on('presence', { event:'join' }, function () {
+        _presenceCount = Object.keys(_presenceChannel.presenceState()).length;
+        _notifyPresence();
+      })
+      .on('presence', { event:'leave' }, function () {
+        _presenceCount = Object.keys(_presenceChannel.presenceState()).length;
+        _notifyPresence();
+      })
+      .subscribe(function (status) {
+        if (status === 'SUBSCRIBED') {
+          _presenceChannel.track({
+            gameId:   PROG_GAME_ID,
+            denom:    PROG_DENOM,
+            joinedAt: new Date().toISOString()
+          });
+        }
+      });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     CONTRIBUTION FLUSH
+     ═══════════════════════════════════════════════════════════════ */
   function _scheduleFlush() {
     if (_flushTimer) return;
     _flushTimer = setTimeout(function () {
       _flushTimer = null;
       if (_pendingAdd <= 0 || !_client) return;
-      var toAdd = _pendingAdd;
+      var toAdd   = parseFloat(_pendingAdd.toFixed(4));
       _pendingAdd = 0;
-      _client.rpc('progressive_contribute', { add_amount: toAdd })
-        .then(function (res) {
-          if (res.error) console.warn('[Progressive] contribute error', res.error);
-        });
+      _client.rpc('progressive_contribute', { add_amount: toAdd }).then(function (res) {
+        if (res.error) console.warn('[Progressive] contribute error:', res.error.message);
+      });
     }, 5000);
   }
 
-  function _notify() {
-    for (var i = 0; i < _listeners.length; i++) {
-      try { _listeners[i](_localValue); } catch (e) {}
-    }
+  /* ═══════════════════════════════════════════════════════════════
+     FORCE WIN CLAIM — called by game engine when force is armed
+     and a spin is initiated on this device
+     ═══════════════════════════════════════════════════════════════ */
+  function _claimForceWin(onClaimed) {
+    if (!_forceCommandId || _forceClaimed) { onClaimed(false); return; }
+    _forceClaimed = true;
+    var hitAmt = parseFloat(_localValue.toFixed(2));
+
+    /* Atomic claim: update only if still 'armed' */
+    _client.from('progressive_commands')
+      .update({
+        status:         'won',
+        winner_session: _sessionKey,
+        winner_game:    PROG_GAME_ID,
+        winner_amt:     hitAmt,
+        won_at:         new Date().toISOString()
+      })
+      .eq('id', _forceCommandId)
+      .eq('status', 'armed')   /* Only succeeds if still armed — race condition safe */
+      .select()
+      .then(function (res) {
+        if (res.error || !res.data || !res.data.length) {
+          /* Someone else got there first */
+          _forceClaimed = false;
+          onClaimed(false);
+          return;
+        }
+        /* We won! Reset the pot */
+        _localValue = _seed;
+        _notifyValue();
+        _forceArmed = false;
+        _client.rpc('progressive_hit', { reset_to: _seed });
+        _client.from('progressive_hits').insert({
+          game_id: PROG_GAME_ID, denom: PROG_DENOM,
+          amount: hitAmt, pattern: 'Force Jackpot', balls: 0, bet: 0
+        });
+        onClaimed(true, hitAmt);
+      });
   }
+
+  /* ═══════════════════════════════════════════════════════════════
+     PUBLIC API
+     ═══════════════════════════════════════════════════════════════ */
 
   function init(onReady) {
     _loadSDK(function () {
@@ -117,33 +236,57 @@ var Progressive = (function () {
         _client    = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         _connected = true;
         _fetchRow(function () {
-          _subscribe();
-          _startPresence();
-          if (typeof onReady === 'function') onReady();
+          _subscribeValue();
+          _subscribeCommands();
+          _subscribePresence();
+          _checkArmedCommand();
+          if (onReady) onReady();
         });
       } catch (e) {
-        console.warn('[Progressive] init failed — local mode.', e);
-        if (typeof onReady === 'function') onReady();
+        console.warn('[Progressive] init failed:', e);
+        if (onReady) onReady();
       }
     });
   }
 
+  /*
+   * contribute(betAmt)
+   * Call on every spin start.
+   * If a force jackpot is armed, returns true — game must trigger the jackpot win.
+   * Game calls claimForce(callback) to atomically claim it.
+   */
   function contribute(betAmt) {
+    if (!betAmt || betAmt <= 0) return false;
     var addition = betAmt * _contribRate;
     _localValue  = Math.min(_localValue + addition, _ceiling);
-    _notify();
-    if (_connected) { _pendingAdd += addition; _scheduleFlush(); }
+    _notifyValue();
+    if (_connected && _client) {
+      _pendingAdd += addition;
+      _scheduleFlush();
+    }
+    return _forceArmed; /* true = this spin should be a force jackpot */
   }
 
+  /*
+   * claimForce(onResult)
+   * Called by game engine when contribute() returns true.
+   * onResult(didWin, amount) — if didWin=true, trigger jackpot.
+   * If didWin=false, someone else got there first — spin normally.
+   */
+  function claimForce(onResult) {
+    _claimForceWin(onResult);
+  }
+
+  /*
+   * hit(info) — natural jackpot (bingo pattern / 5OAK)
+   */
   function hit(info) {
     var hitAmt  = parseFloat(_localValue.toFixed(2));
     _localValue = _seed;
-    _notify();
+    _notifyValue();
     if (_connected && _client) {
       var rec = {
-        game_id: PROG_GAME_ID,
-        denom:   PROG_DENOM,
-        amount:  hitAmt,
+        game_id: PROG_GAME_ID, denom: PROG_DENOM, amount: hitAmt,
         pattern: (info && info.pattern) ? info.pattern : 'Progressive Jackpot',
         balls:   (info && info.balls)   ? info.balls   : 0,
         bet:     (info && info.bet)     ? info.bet      : 0
@@ -154,20 +297,36 @@ var Progressive = (function () {
     return hitAmt;
   }
 
-  function mustHit()     { return _localValue >= _ceiling; }
-  function getDisplay()  { return '$' + _localValue.toFixed(2); }
-  function getValue()    { return _localValue; }
-  function isConnected() { return _connected; }
+  function mustHit()              { return _localValue >= _ceiling; }
+  function getDisplay()           { return '$' + _localValue.toFixed(2); }
+  function getValue()             { return _localValue; }
+  function isConnected()          { return _connected; }
+  function getPresenceCount()     { return _presenceCount; }
+  function isForceArmed()         { return _forceArmed; }
+  function getSessionKey()        { return _sessionKey; }
 
-  function onChange(fn) {
-    _listeners.push(fn);
-    fn(_localValue);
-  }
+  function onChange(fn)           { _valueListeners.push(fn); fn(_localValue); }
+  function onPresenceChange(fn)   { _presenceListeners.push(fn); fn(_presenceCount); }
+
+  /* Register callbacks for force win events */
+  function onForceWin(fn)         { _onForceWin    = fn; }
+  function onForceNotify(fn)      { _onForceNotify = fn; }
 
   return {
-    init: init, contribute: contribute, hit: hit,
-    mustHit: mustHit, getDisplay: getDisplay,
-    getValue: getValue, onChange: onChange, isConnected: isConnected,
-    getPresenceCount: getPresenceCount, onPresenceChange: onPresenceChange
+    init:             init,
+    contribute:       contribute,
+    claimForce:       claimForce,
+    hit:              hit,
+    mustHit:          mustHit,
+    getDisplay:       getDisplay,
+    getValue:         getValue,
+    isConnected:      isConnected,
+    isForceArmed:     isForceArmed,
+    getPresenceCount: getPresenceCount,
+    getSessionKey:    getSessionKey,
+    onChange:         onChange,
+    onPresenceChange: onPresenceChange,
+    onForceWin:       onForceWin,
+    onForceNotify:    onForceNotify
   };
 }());
