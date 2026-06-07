@@ -32,7 +32,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 #lock-screen {
   position: fixed; inset: 0; background: var(--bg);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 100; gap: 16px;
+  z-index: 500; gap: 16px;
 }
 #lock-title { font-size: 13px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
 #lock-logo  { font-size: 28px; font-weight: 900; color: var(--gold);
@@ -172,7 +172,7 @@ html,body{width:100%;height:100%;background:#05000f;overflow:hidden;
   gap:0;
   transition:opacity .8s ease;
 }
-#splash.fade-out{opacity:0;pointer-events:none;}
+#splash.fade-out{opacity:0;pointer-events:none;touch-action:none;z-index:-1;}
 
 /* Scanlines */
 #splash::before{
@@ -351,26 +351,18 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
 // Auto-dismiss splash after 2s — also tap to skip
 function dismissSplash() {
   var sp = document.getElementById('splash');
-  if (!sp || sp.style.display === 'none') return;
+  if (!sp) return;
+  /* Immediately kill all interaction on splash */
+  sp.style.pointerEvents = 'none';
+  sp.style.touchAction   = 'none';
+  sp.style.zIndex        = '-1';
   sp.classList.add('fade-out');
   setTimeout(function() {
-    if (sp) sp.style.display = 'none';
-    // Make sure lock screen is visible
-    var ls = document.getElementById('lock-screen');
-    if (ls) ls.style.display = 'flex';
-  }, 600);
+    sp.style.display = 'none';
+  }, 500);
 }
-// Auto-dismiss after 2 seconds
-setTimeout(dismissSplash, 2000);
-// Tap anywhere to skip
-document.addEventListener('click', function onTap() {
-  dismissSplash();
-  document.removeEventListener('click', onTap);
-});
-document.addEventListener('touchend', function onTouch() {
-  dismissSplash();
-  document.removeEventListener('touchend', onTouch);
-});
+/* Auto-dismiss after 1.8s */
+setTimeout(dismissSplash, 1800);
 </script>
 
 <div id="lock-screen">
