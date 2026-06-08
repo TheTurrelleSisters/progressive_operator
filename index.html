@@ -36,14 +36,15 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 0;
   transition: opacity .8s ease;
-  font-family: 'Arial Black', Arial, sans-serif;
 }
 #splash.fade-out { opacity: 0; pointer-events: none; touch-action: none; z-index: -1; }
+
 #splash::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background: repeating-linear-gradient(0deg, transparent, transparent 3px,
     rgba(0,0,0,.12) 3px, rgba(0,0,0,.12) 4px);
 }
+
 .star { position: absolute; border-radius: 50%; background: #ffd700;
   animation: twinkle var(--d) ease-in-out infinite var(--delay); }
 @keyframes twinkle { 0%,100%{opacity:.2;transform:scale(.8)} 50%{opacity:1;transform:scale(1.2)} }
@@ -55,6 +56,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   filter: drop-shadow(0 0 16px rgba(255,215,0,.6)) drop-shadow(0 0 32px rgba(255,150,0,.3));
 }
 @keyframes gear-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
 #gear-ring {
   position: absolute; inset: -12px; border-radius: 50%;
   border: 2px solid rgba(255,215,0,.3);
@@ -69,157 +71,204 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   0%,100%{transform:scale(1);opacity:.4}
   50%{transform:scale(1.08);opacity:.9}
 }
-#splash-title { font-size:clamp(11px,3.5vw,16px); letter-spacing:4px; color:#ff8844; text-transform:uppercase; text-shadow:0 0 8px #ff4400; margin-bottom:4px; }
-#splash-name { font-size:clamp(22px,7vw,32px); font-weight:900; color:#ffd700; text-align:center; line-height:1.15; letter-spacing:2px; text-shadow:0 0 12px #ff8800,0 0 24px #ff4400; margin-bottom:6px; }
-#splash-sub { font-size:clamp(9px,2.5vw,12px); letter-spacing:3px; color:#664488; text-transform:uppercase; margin-bottom:28px; }
-#loading-wrap { width:180px; margin-bottom:12px; }
-#loading-track { height:3px; background:rgba(255,215,0,.15); border-radius:2px; overflow:hidden; }
-#loading-bar { height:100%; width:0%; background:linear-gradient(90deg,#ff4400,#ffd700); border-radius:2px; animation:load-fill 2.2s cubic-bezier(.4,0,.2,1) forwards .3s; box-shadow:0 0 8px #ffd700; }
+
+#splash-title {
+  font-size: clamp(11px,3.5vw,16px); letter-spacing: 4px; color: #ff8844;
+  text-transform: uppercase; text-shadow: 0 0 8px #ff4400; margin-bottom: 4px;
+  font-family: 'Arial Black', Arial, sans-serif;
+}
+#splash-name {
+  font-size: clamp(22px,7vw,32px); font-weight: 900; color: #ffd700;
+  text-align: center; line-height: 1.15; letter-spacing: 2px;
+  text-shadow: 0 0 12px #ff8800, 0 0 24px #ff4400; margin-bottom: 6px;
+  font-family: 'Arial Black', Arial, sans-serif;
+}
+#splash-sub {
+  font-size: clamp(9px,2.5vw,12px); letter-spacing: 3px; color: #664488;
+  text-transform: uppercase; margin-bottom: 28px;
+  font-family: 'Arial Black', Arial, sans-serif;
+}
+#loading-wrap { width: 180px; margin-bottom: 12px; }
+#loading-track { height: 3px; background: rgba(255,215,0,.15); border-radius: 2px; overflow: hidden; }
+#loading-bar {
+  height: 100%; width: 0%; background: linear-gradient(90deg,#ff4400,#ffd700);
+  border-radius: 2px;
+  animation: load-fill 2.2s cubic-bezier(.4,0,.2,1) forwards .3s;
+  box-shadow: 0 0 8px #ffd700;
+}
 @keyframes load-fill { from{width:0%} to{width:100%} }
-#loading-text { text-align:center; font-size:8px; color:#442255; letter-spacing:2px; margin-top:6px; text-transform:uppercase; animation:blink .8s ease-in-out infinite; }
+#loading-text {
+  text-align: center; font-size: 8px; color: #442255;
+  letter-spacing: 2px; margin-top: 6px; text-transform: uppercase;
+  animation: blink .8s ease-in-out infinite;
+  font-family: Arial, sans-serif;
+}
 @keyframes blink { 0%,100%{opacity:.4} 50%{opacity:1} }
-#sasha-char { position:absolute; bottom:-10px; right:0px; height:52%; width:auto; opacity:.18; filter:grayscale(30%); pointer-events:none; }
-#splash-ver { position:absolute; bottom:14px; font-size:9px; color:#331144; letter-spacing:2px; font-family:Arial,sans-serif; font-weight:normal; }
+
+#sasha-char {
+  position: absolute; bottom: -10px; right: 0px;
+  height: 52%; width: auto; opacity: .18; filter: grayscale(30%); pointer-events: none;
+}
+#splash-ver {
+  position: absolute; bottom: 14px; font-size: 9px; color: #331144;
+  letter-spacing: 2px; font-family: Arial, sans-serif; font-weight: normal;
+}
 
 /* ── LOCK SCREEN ── */
 #lock-screen {
   position: fixed; inset: 0; background: var(--bg);
   display: none; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 8888; gap: 16px;
+  z-index: 8000; gap: 16px;
 }
-#lock-screen.visible { display: flex; }
-#lock-avatar {
-  width: 56px; height: 56px; border-radius: 50%;
-  background: linear-gradient(135deg,#3a006a,#1a0030);
-  border: 2px solid var(--gold-dk);
+#lock-screen.show { display: flex; }
+#lock-title { font-size: 13px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
+#lock-logo { font-size: 28px; font-weight: 900; color: var(--gold);
+  text-shadow: 0 0 12px #ff6600; letter-spacing: 2px; text-align: center; line-height: 1.2; }
+#lock-sub { font-size: 10px; color: var(--dim); letter-spacing: 2px; }
+#pin-dots { display: flex; gap: 10px; margin: 8px 0; }
+.pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--gold-dk); background: transparent; transition: background .15s; }
+.pin-dot.filled { background: var(--gold); }
+#pin-error { color: var(--danger); font-size: 11px; height: 14px; }
+#pin-grid { display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; }
+.pkey {
+  height: 56px; border-radius: 10px; border: 1.5px solid var(--border);
+  background: var(--bg2); color: var(--text); font-size: 20px; font-weight: bold;
+  cursor: pointer; transition: background .1s, transform .08s;
   display: flex; align-items: center; justify-content: center;
-  font-size: 24px; color: var(--gold); margin-bottom: 4px;
 }
-#lock-username { font-size:15px; font-weight:bold; color:var(--gold); letter-spacing:1px; }
-#lock-title { font-size:11px; letter-spacing:3px; color:var(--dim); text-transform:uppercase; margin-top:-8px; }
-#pin-dots { display:flex; gap:10px; margin:8px 0; }
-.pin-dot { width:14px; height:14px; border-radius:50%; border:2px solid var(--gold-dk); background:transparent; transition:background .15s; }
-.pin-dot.filled { background:var(--gold); }
-#pin-error { color:var(--danger); font-size:11px; height:14px; text-align:center; letter-spacing:1px; }
-#pin-grid { display:grid; grid-template-columns:repeat(3,64px); gap:10px; }
-.pkey { height:56px; border-radius:10px; border:1.5px solid var(--border); background:var(--bg2); color:var(--text); font-size:20px; font-weight:bold; cursor:pointer; transition:background .1s,transform .08s; display:flex; align-items:center; justify-content:center; }
-.pkey:active { background:var(--bg3); transform:scale(.94); }
-.pkey.wide { grid-column:span 2; font-size:13px; letter-spacing:1px; color:var(--dim); }
-.pkey.enter { background:linear-gradient(135deg,#003a00,#006600); color:var(--green); font-size:13px; }
+.pkey:active { background: var(--bg3); transform: scale(.94); }
+.pkey.wide { grid-column: span 2; font-size: 13px; letter-spacing: 1px; color: var(--dim); }
+.pkey.enter { background: linear-gradient(135deg,#003a00,#006600); color: var(--green); font-size: 13px; }
 
 /* ── APP ── */
-#app { display:none; flex-direction:column; height:100%; }
-#app.visible { display:flex; }
+#app { display: none; flex-direction: column; height: 100%; }
+#app.visible { display: flex; }
 
 /* ── HEADER ── */
 #app-hdr {
-  background: linear-gradient(135deg,#0a0010,#1e003a);
+  background: linear-gradient(135deg, #0a0010, #1e003a);
   border-bottom: 1.5px solid var(--gold-dk);
   padding: 10px 14px 8px; flex-shrink: 0;
 }
-#app-hdr-top { display:flex; justify-content:space-between; align-items:center; }
-#app-title { font-size:11px; letter-spacing:2px; color:var(--gold); text-transform:uppercase; }
-#conn-badge { font-size:9px; padding:2px 8px; border-radius:10px; letter-spacing:1px; }
-#conn-badge.ok  { background:#003300; color:var(--green); border:1px solid #006600; }
-#conn-badge.err { background:#330000; color:var(--danger); border:1px solid #660000; }
+#app-hdr-top { display: flex; justify-content: space-between; align-items: center; }
+#app-title { font-size: 11px; letter-spacing: 2px; color: var(--gold); text-transform: uppercase; }
+#conn-badge { font-size: 9px; padding: 2px 8px; border-radius: 10px; letter-spacing: 1px; }
+#conn-badge.ok { background: #003300; color: var(--green); border: 1px solid #006600; }
+#conn-badge.err { background: #330000; color: var(--danger); border: 1px solid #660000; }
 
 /* ── POT DISPLAY ── */
 #pot-display {
-  background: linear-gradient(135deg,#1a0000,#3a0010);
+  background: linear-gradient(135deg, #1a0000, #3a0010);
   border-bottom: 1px solid #ff4400;
-  padding: 8px 14px;
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0;
+  padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
 }
-#pot-lbl  { font-size:9px; color:#ff8844; letter-spacing:2px; text-transform:uppercase; }
-#pot-val  { font-size:26px; font-weight:900; color:#ffdd00; text-shadow:0 0 8px #ff6600; font-family:'Arial Black',Arial,sans-serif; }
-#pot-meta { font-size:9px; color:var(--dim); text-align:right; line-height:1.6; }
-
-/* Inactive warning */
-#inactive-badge {
-  display: none; background: linear-gradient(135deg,#3a0000,#660000);
-  border: 1px solid #ff4400; border-radius: 6px;
-  padding: 2px 8px; font-size: 9px; color: #ff8844; letter-spacing:1px;
-  margin-top: 4px; text-align:center;
-}
-#inactive-badge.show { display: block; }
+#pot-lbl { font-size: 9px; color: #ff8844; letter-spacing: 2px; text-transform: uppercase; }
+#pot-val { font-size: 26px; font-weight: 900; color: #ffdd00;
+  text-shadow: 0 0 8px #ff6600; font-family: 'Arial Black', Arial, sans-serif; }
+#pot-meta { font-size: 9px; color: var(--dim); text-align: right; }
 
 /* ── TABS ── */
-#tab-bar { display:flex; border-bottom:1.5px solid var(--border); background:var(--bg2); flex-shrink:0; }
-.tab { flex:1; padding:10px 4px; text-align:center; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--dim); cursor:pointer; border-bottom:2px solid transparent; transition:all .15s; }
-.tab.active { color:var(--gold); border-bottom-color:var(--gold); }
+#tab-bar {
+  display: flex; border-bottom: 1.5px solid var(--border);
+  background: var(--bg2); flex-shrink: 0;
+}
+.tab {
+  flex: 1; padding: 10px 4px; text-align: center; font-size: 10px;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--dim);
+  cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s;
+}
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 
 /* ── CONTENT ── */
-#tab-content { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px; }
+#tab-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px; }
 
 /* ── SECTIONS ── */
-.section { margin-bottom:18px; }
-.sec-title { font-size:9px; letter-spacing:2px; color:var(--gold-dk); text-transform:uppercase; margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid var(--border); }
-.row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #1e003a; }
-.row:last-child { border-bottom:none; }
-.row-lbl  { font-size:12px; color:var(--text); }
-.row-sub  { font-size:9px; color:var(--dim); margin-top:2px; }
-.row-val  { font-size:14px; color:var(--gold); font-weight:bold; }
-.inp { background:var(--bg3); border:1.5px solid var(--border); border-radius:6px; color:var(--gold); font-size:14px; padding:6px 10px; width:110px; text-align:right; outline:none; }
-.inp:focus { border-color:var(--gold-dk); }
+.section { margin-bottom: 18px; }
+.sec-title {
+  font-size: 9px; letter-spacing: 2px; color: var(--gold-dk);
+  text-transform: uppercase; margin-bottom: 8px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid #1e003a;
+}
+.row:last-child { border-bottom: none; }
+.row-lbl { font-size: 12px; color: var(--text); }
+.row-sub { font-size: 9px; color: var(--dim); margin-top: 2px; }
+.row-val { font-size: 14px; color: var(--gold); font-weight: bold; }
+.inp {
+  background: var(--bg3); border: 1.5px solid var(--border); border-radius: 6px;
+  color: var(--gold); font-size: 14px; padding: 6px 10px; width: 110px;
+  text-align: right; outline: none;
+}
+.inp:focus { border-color: var(--gold-dk); }
 
 /* ── BUTTONS ── */
-.btn { padding:10px 16px; border-radius:8px; border:none; font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:transform .08s,opacity .1s; }
-.btn:active { transform:scale(.94); opacity:.85; }
-.btn-gold   { background:linear-gradient(135deg,#5a3800,#b8860b); color:var(--gold); border:1px solid var(--gold-dk); }
-.btn-green  { background:linear-gradient(135deg,#003a00,#006600); color:var(--green); border:1px solid #00aa44; }
-.btn-danger { background:linear-gradient(135deg,#3a0010,#660022); color:var(--danger); border:1px solid #aa0033; }
-.btn-full   { width:100%; margin-top:8px; padding:12px; font-size:12px; }
+.btn {
+  padding: 10px 16px; border-radius: 8px; border: none; font-size: 11px;
+  font-weight: bold; letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; transition: transform .08s, opacity .1s;
+}
+.btn:active { transform: scale(.94); opacity: .85; }
+.btn-gold { background: linear-gradient(135deg,#5a3800,#b8860b); color: var(--gold); border: 1px solid var(--gold-dk); }
+.btn-green { background: linear-gradient(135deg,#003a00,#006600); color: var(--green); border: 1px solid #00aa44; }
+.btn-danger { background: linear-gradient(135deg,#3a0010,#660022); color: var(--danger); border: 1px solid #aa0033; }
+.btn-full { width: 100%; margin-top: 8px; padding: 12px; font-size: 12px; }
 
 /* ── STATS GRID ── */
-.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:10px; text-align:center; }
-.stat-val { font-size:20px; font-weight:900; color:var(--gold); }
-.stat-lbl { font-size:9px; color:var(--dim); letter-spacing:1px; margin-top:2px; }
-
-/* ── CONNECTED / INACTIVE DEVICE CARDS ── */
-.device-card {
-  background:var(--bg2); border:1px solid var(--border); border-radius:8px;
-  padding:10px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px; text-align: center;
 }
-.device-name { font-size:12px; color:var(--text); font-weight:bold; }
-.device-meta { font-size:9px; color:var(--dim); margin-top:3px; }
-.device-status { font-size:9px; padding:2px 8px; border-radius:8px; letter-spacing:1px; }
-.device-status.active   { background:#003300; color:var(--green); border:1px solid #006600; }
-.device-status.inactive { background:#330000; color:var(--danger); border:1px solid #660000; }
+.stat-val { font-size: 20px; font-weight: 900; color: var(--gold); }
+.stat-lbl { font-size: 9px; color: var(--dim); letter-spacing: 1px; margin-top: 2px; }
 
 /* ── HISTORY ── */
-.hit-row { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
-.hit-amt  { font-size:18px; font-weight:900; color:#ffdd00; }
-.hit-meta { font-size:10px; color:var(--dim); margin-top:3px; }
-.hit-game { font-size:10px; color:var(--gold); font-weight:bold; }
+.hit-row {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.hit-amt { font-size: 18px; font-weight: 900; color: #ffdd00; }
+.hit-meta { font-size: 10px; color: var(--dim); margin-top: 3px; }
+.hit-game { font-size: 10px; color: var(--gold); font-weight: bold; }
 
 /* ── TOAST ── */
-#toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:#1e003a; border:1.5px solid var(--gold-dk); border-radius:20px; padding:8px 20px; font-size:12px; color:var(--gold); transition:transform .3s ease; z-index:999; pointer-events:none; white-space:nowrap; }
-#toast.on { transform:translateX(-50%) translateY(0); }
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: #1e003a; border: 1.5px solid var(--gold-dk); border-radius: 20px;
+  padding: 8px 20px; font-size: 12px; color: var(--gold);
+  transition: transform .3s ease; z-index: 999; pointer-events: none; white-space: nowrap;
+}
+#toast.on { transform: translateX(-50%) translateY(0); }
 
 /* ── ARMED BANNER ── */
-#armed-banner { display:none; margin:10px 0; background:linear-gradient(135deg,#3a0000,#660010); border:2px solid #ff4400; border-radius:10px; padding:12px 14px; animation:armed-pulse 1s ease-in-out infinite; }
-#armed-banner.show { display:block; }
-@keyframes armed-pulse {
-  0%,100%{border-color:#ff4400;box-shadow:0 0 8px rgba(255,68,0,.4);}
-  50%{border-color:#ff8800;box-shadow:0 0 20px rgba(255,136,0,.7);}
+#armed-banner {
+  display: none; margin: 10px 0;
+  background: linear-gradient(135deg, #3a0000, #660010);
+  border: 2px solid #ff4400; border-radius: 10px; padding: 12px 14px;
+  animation: armed-pulse 1s ease-in-out infinite;
 }
-#armed-title { font-size:14px; font-weight:900; color:#ff4400; letter-spacing:2px; text-align:center; margin-bottom:4px; }
-#armed-desc  { font-size:10px; color:#cc6644; text-align:center; font-family:Arial,sans-serif; font-weight:normal; line-height:1.5; }
-#armed-cancel { width:100%; margin-top:10px; padding:8px; border-radius:7px; border:1px solid #884400; background:rgba(0,0,0,.4); color:#884400; font-size:10px; font-weight:900; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
-
-/* ── PROGRESS BAR ── */
-#pot-progress-wrap { height:4px; background:rgba(255,215,0,.1); border-radius:2px; overflow:hidden; margin-top:4px; }
-#pot-progress-bar  { height:100%; width:0%; background:linear-gradient(90deg,#b8860b,#ffd700); border-radius:2px; transition:width .5s ease; box-shadow:0 0 6px #ffd700; }
-
-/* ── MSG TAB ── */
-.msg-compose { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px; }
-.msg-compose textarea { width:100%; background:var(--bg3); border:1.5px solid var(--border); border-radius:6px; color:var(--gold); font-size:13px; padding:8px; outline:none; resize:none; font-family:Arial,sans-serif; }
-.msg-compose textarea:focus { border-color:var(--gold-dk); }
+#armed-banner.show { display: block; }
+@keyframes armed-pulse {
+  0%,100% { border-color: #ff4400; box-shadow: 0 0 8px rgba(255,68,0,.4); }
+  50% { border-color: #ff8800; box-shadow: 0 0 20px rgba(255,136,0,.7); }
+}
+#armed-title { font-size: 14px; font-weight: 900; color: #ff4400; letter-spacing: 2px; text-align: center; margin-bottom: 4px; }
+#armed-desc { font-size: 10px; color: #cc6644; text-align: center; font-family: Arial, sans-serif; font-weight: normal; line-height: 1.5; }
+#armed-cancel {
+  width: 100%; margin-top: 10px; padding: 8px; border-radius: 7px; border: 1px solid #884400;
+  background: rgba(0,0,0,.4); color: #884400; font-size: 10px; font-weight: 900;
+  letter-spacing: 1px; cursor: pointer; text-transform: uppercase;
+}
 </style>
 <script>
-if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("service-worker.js").catch(function(e){console.warn(e);});});}
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function() {
+    navigator.serviceWorker.register("service-worker.js").catch(function(e) { console.warn(e); });
+  });
+}
 </script>
 </head>
 <body>
@@ -234,53 +283,42 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
   <div class="star" style="width:4px;height:4px;top:72%;left:20%;--d:2.6s;--delay:.4s"></div>
   <div class="star" style="width:2px;height:2px;top:80%;left:60%;--d:2.9s;--delay:.9s"></div>
   <div class="star" style="width:3px;height:3px;top:10%;left:55%;--d:3.3s;--delay:.2s"></div>
+
   <div id="gear-wrap">
-    <div id="gear-ring2"></div>
     <div id="gear-ring"></div>
+    <div id="gear-ring2"></div>
+    <!-- SVG gear icon inline so no external image needed -->
     <svg id="gear-img" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <path fill="#ffd700" d="M43 2l-3 10a35 35 0 0 0-8 3L23 9l-9 9 6 9a35 35 0 0 0-3 8L7 38v13l10 3a35 35 0 0 0 3 8l-6 9 9 9 9-6a35 35 0 0 0 8 3l3 10h13l3-10a35 35 0 0 0 8-3l9 6 9-9-6-9a35 35 0 0 0 3-8l10-3V38l-10-3a35 35 0 0 0-3-8l6-9-9-9-9 6a35 35 0 0 0-8-3L56 2H43zm6.5 28a20 20 0 1 1 0 40 20 20 0 0 1 0-40z"/>
+      <path fill="#ffd700" d="M43 5l-3 10a33 33 0 0 0-8 3L22 14l-8 8 4 10a33 33 0 0 0-3 8L5 43v11l10 3a33 33 0 0 0 3 8l-4 10 8 8 10-4a33 33 0 0 0 8 3l3 10h11l3-10a33 33 0 0 0 8-3l10 4 8-8-4-10a33 33 0 0 0 3-8l10-3V43l-10-3a33 33 0 0 0-3-8l4-10-8-8-10 4a33 33 0 0 0-8-3L54 5H43zm6 28a17 17 0 1 1 0 34 17 17 0 0 1 0-34z"/>
     </svg>
   </div>
-  <div id="splash-title">Progressive Operator</div>
-  <div id="splash-name">OPERATOR<br>CONSOLE</div>
-  <div id="splash-sub">Gold Coins Casino</div>
+
+  <div id="splash-title">Gold Coins Casino</div>
+  <div id="splash-name">Progressive<br>Operator</div>
+  <div id="splash-sub">Operator Control Panel</div>
+
   <div id="loading-wrap">
-    <div id="loading-track"><div id="loading-bar"></div></div>
-    <div id="loading-text">Connecting to Supabase...</div>
+    <div id="loading-track">
+      <div id="loading-bar"></div>
+    </div>
+    <div id="loading-text">Connecting to database...</div>
   </div>
-  <div id="splash-ver">v2.0</div>
+
+  <div id="splash-ver">v2.0 &bull; OPERATOR</div>
 </div>
 
-<!-- ── LOCK / PIN SCREEN ── -->
+<!-- ── LOCK SCREEN ── -->
 <div id="lock-screen">
-  <div id="lock-avatar">&#9881;</div>
-  <input id="lock-username-input"
-    type="text"
-    maxlength="20"
-    placeholder="Enter username"
-    autocomplete="off"
-    style="
-      background: var(--bg2);
-      border: 1.5px solid var(--gold-dk);
-      border-radius: 8px;
-      color: var(--gold);
-      font-size: 15px;
-      font-weight: bold;
-      letter-spacing: 1px;
-      text-align: center;
-      padding: 8px 14px;
-      outline: none;
-      width: 200px;
-    "
-  />
-  <div id="lock-title">Enter PIN</div>
+  <div id="lock-title">&#9733; Operator Access &#9733;</div>
+  <div id="lock-logo">GOLD COINS<br>CASINO</div>
+  <div id="lock-sub">Enter PIN to continue</div>
   <div id="pin-dots">
-    <div class="pin-dot" id="dot0"></div>
-    <div class="pin-dot" id="dot1"></div>
-    <div class="pin-dot" id="dot2"></div>
-    <div class="pin-dot" id="dot3"></div>
+    <div class="pin-dot" id="pd-0"></div>
+    <div class="pin-dot" id="pd-1"></div>
+    <div class="pin-dot" id="pd-2"></div>
+    <div class="pin-dot" id="pd-3"></div>
   </div>
-  <div id="pin-error"></div>
+  <div id="pin-error">&nbsp;</div>
   <div id="pin-grid">
     <button class="pkey" onclick="pinKey('1')">1</button>
     <button class="pkey" onclick="pinKey('2')">2</button>
@@ -291,9 +329,8 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <button class="pkey" onclick="pinKey('7')">7</button>
     <button class="pkey" onclick="pinKey('8')">8</button>
     <button class="pkey" onclick="pinKey('9')">9</button>
-    <button class="pkey wide" onclick="pinClear()">Clear</button>
+    <button class="pkey wide" onclick="pinClear()">CLEAR</button>
     <button class="pkey" onclick="pinKey('0')">0</button>
-    <button class="pkey enter" onclick="pinEnter()">&#10003;</button>
   </div>
 </div>
 
@@ -301,573 +338,194 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
 <div id="app">
   <div id="app-hdr">
     <div id="app-hdr-top">
-      <div id="app-title">&#9733; Progressive Operator</div>
-      <div id="conn-badge" class="err">OFFLINE</div>
+      <div id="app-title">&#9881; Progressive Operator</div>
+      <div id="conn-badge" class="err">CONNECTING</div>
     </div>
   </div>
 
   <div id="pot-display">
-    <div style="flex:1">
+    <div>
       <div id="pot-lbl">&#9733; Current Jackpot</div>
-      <div id="pot-val">$0.00</div>
-      <div id="pot-progress-wrap"><div id="pot-progress-bar"></div></div>
-      <div id="inactive-badge">NO SPIN 4+ MIN</div>
+      <div id="pot-val">$500.00</div>
     </div>
     <div id="pot-meta">
-      Cap: —<br>Seed: —<br>Hits: —
+      <div id="pot-seed-lbl">Seed: <span id="pot-seed">$500.00</span></div>
+      <div id="pot-updated">Updating...</div>
     </div>
   </div>
 
   <div id="tab-bar">
-    <div class="tab active"  onclick="showTab('dashboard')">Dashboard</div>
-    <div class="tab"         onclick="showTab('settings')">Settings</div>
-    <div class="tab"         onclick="showTab('history')">History</div>
-    <div class="tab"         onclick="showTab('force')">Force</div>
-    <div class="tab"         onclick="showTab('msg')">&#128276; Msg</div>
+    <div class="tab active" id="tab-control" onclick="showTab('control')">Control</div>
+    <div class="tab" id="tab-stats" onclick="showTab('stats')">Stats</div>
+    <div class="tab" id="tab-history" onclick="showTab('history')">History</div>
+    <div class="tab" id="tab-message" onclick="showTab('message')">Message</div>
   </div>
 
-  <div id="tab-content"></div>
-</div>
+  <div id="tab-content">
 
-<!-- ── TOAST ── -->
+    <!-- CONTROL TAB -->
+    <div id="pane-control">
+      <div id="armed-banner">
+        <div id="armed-title">&#9888; JACKPOT ARMED</div>
+        <div id="armed-desc">Next eligible spin will trigger the jackpot payout.</div>
+        <button id="armed-cancel" onclick="disarmJackpot()">CANCEL ARM</button>
+      </div>
+
+      <div class="section">
+        <div class="sec-title">Jackpot Controls</div>
+        <div class="row">
+          <div>
+            <div class="row-lbl">Current Pot</div>
+            <div class="row-sub">Live value from database</div>
+          </div>
+          <div class="row-val" id="ctrl-pot">$500.00</div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="row-lbl">Seed Value</div>
+            <div class="row-sub">Reset amount after hit</div>
+          </div>
+          <input class="inp" id="inp-seed" type="number" step="0.01" value="500.00">
+        </div>
+        <button class="btn btn-gold btn-full" onclick="saveSeed()">SAVE SEED</button>
+        <button class="btn btn-danger btn-full" onclick="armJackpot()">&#9888; ARM JACKPOT</button>
+      </div>
+
+      <div class="section">
+        <div class="sec-title">Manual Jackpot</div>
+        <div class="row">
+          <div>
+            <div class="row-lbl">Override Amount</div>
+            <div class="row-sub">Manually set pot value</div>
+          </div>
+          <input class="inp" id="inp-override" type="number" step="0.01" value="">
+        </div>
+        <button class="btn btn-green btn-full" onclick="setPotManual()">SET POT VALUE</button>
+        <button class="btn btn-danger btn-full" onclick="triggerJackpotManual()">&#9733; TRIGGER JACKPOT HIT</button>
+      </div>
+    </div>
+
+    <!-- STATS TAB -->
+    <div id="pane-stats" style="display:none">
+      <div class="section">
+        <div class="sec-title">All Time Stats</div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-val" id="stat-hits">0</div><div class="stat-lbl">Total Hits</div></div>
+          <div class="stat-card"><div class="stat-val" id="stat-total">$0</div><div class="stat-lbl">Total Paid</div></div>
+          <div class="stat-card"><div class="stat-val" id="stat-avg">$0</div><div class="stat-lbl">Avg Hit</div></div>
+          <div class="stat-card"><div class="stat-val" id="stat-max">$0</div><div class="stat-lbl">Largest Hit</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div id="pane-history" style="display:none">
+      <div class="section">
+        <div class="sec-title">Recent Jackpot Hits</div>
+        <div id="history-list"><div style="color:var(--dim);font-size:11px;text-align:center;padding:20px">Loading history...</div></div>
+      </div>
+    </div>
+
+    <!-- MESSAGE TAB -->
+    <div id="pane-message" style="display:none">
+      <div class="section">
+        <div class="sec-title">Broadcast Message</div>
+        <div class="row">
+          <div class="row-lbl">Type</div>
+          <select class="inp" id="msg-type" style="width:auto">
+            <option value="general">General</option>
+            <option value="jackpot">Jackpot</option>
+            <option value="event">Event</option>
+            <option value="bonus">Bonus</option>
+          </select>
+        </div>
+        <textarea id="msg-text" style="width:100%;margin-top:10px;padding:10px;background:var(--bg3);
+          border:1.5px solid var(--border);border-radius:8px;color:var(--text);
+          font-size:13px;font-family:Arial,sans-serif;resize:none;height:80px;outline:none"
+          placeholder="Enter message to broadcast to all lobby screens..."></textarea>
+        <button class="btn btn-gold btn-full" onclick="sendMessage()">&#128226; BROADCAST</button>
+      </div>
+    </div>
+
+  </div><!-- end tab-content -->
+</div><!-- end app -->
+
 <div id="toast"></div>
 
-<!-- ══════════════════════════════════════════════════════
-     OPERATOR SCRIPTS
-     progressive.js is the Supabase engine.
-     The operator UI below wires up to it.
-     ══════════════════════════════════════════════════════ -->
 <script src="progressive.js"></script>
 <script>
-
-/* ══════════════════════════════════════════════
-   PIN LOGIC
-   Change PIN_CODE to your real 4-digit PIN.
-   ══════════════════════════════════════════════ */
-var PIN_CODE  = '7777'; /* Default PIN — player can change in Settings */
-var _pinBuf   = '';
-
-/* Load saved username and PIN on page init */
-window.addEventListener('DOMContentLoaded', function() {
-  var saved = '';
-  try { saved = localStorage.getItem('op_username') || ''; } catch(e) {}
-  var inp = document.getElementById('lock-username-input');
-  if (inp && saved) inp.value = saved;
-  /* Load saved PIN if player changed it */
-  try {
-    var savedPin = localStorage.getItem('op_pin');
-    if (savedPin && /^\d{4}$/.test(savedPin)) PIN_CODE = savedPin;
-  } catch(e) {}
-});
+/* ── PIN Logic ── */
+var _pin = '';
+var _correctPin = '7777';
 
 function pinKey(d) {
-  if (_pinBuf.length >= 4) return;
-  _pinBuf += d;
-  _renderDots();
-  if (_pinBuf.length === 4) setTimeout(pinEnter, 120);
+  if (_pin.length >= 4) return;
+  _pin += d;
+  updatePinDots();
+  if (_pin.length === 4) {
+    setTimeout(checkPin, 200);
+  }
 }
-function pinClear() {
-  _pinBuf = '';
-  _renderDots();
-  document.getElementById('pin-error').textContent = '';
-}
-function pinEnter() {
-  var uname = '';
-  var inp = document.getElementById('lock-username-input');
-  if (inp) uname = inp.value.trim();
-  if (!uname) { inp && (inp.style.borderColor = 'var(--danger)'); return; }
-  if (inp) inp.style.borderColor = 'var(--gold-dk)';
 
-  if (_pinBuf === PIN_CODE) {
-    try { localStorage.setItem('op_username', uname); } catch(e) {}
-    /* Show username in app header */
-    var titleEl = document.getElementById('app-title');
-    if (titleEl) titleEl.textContent = '\u2605 ' + uname;
-    document.getElementById('lock-screen').classList.remove('visible');
-    document.getElementById('app').classList.add('visible');
-    _startApp();
+function pinClear() {
+  _pin = '';
+  updatePinDots();
+  document.getElementById('pin-error').textContent = '\u00a0';
+}
+
+function updatePinDots() {
+  for (var i = 0; i < 4; i++) {
+    var dot = document.getElementById('pd-' + i);
+    if (dot) dot.classList.toggle('filled', i < _pin.length);
+  }
+}
+
+function checkPin() {
+  if (_pin === _correctPin) {
+    var lock = document.getElementById('lock-screen');
+    var app  = document.getElementById('app');
+    if (lock) lock.classList.remove('show');
+    if (app)  app.classList.add('visible');
   } else {
     document.getElementById('pin-error').textContent = 'Incorrect PIN';
-    _pinBuf = '';
-    _renderDots();
-    setTimeout(function(){ document.getElementById('pin-error').textContent = ''; }, 1500);
-  }
-}
-function _renderDots() {
-  for (var i = 0; i < 4; i++) {
-    var d = document.getElementById('dot' + i);
-    if (d) { i < _pinBuf.length ? d.classList.add('filled') : d.classList.remove('filled'); }
+    _pin = '';
+    updatePinDots();
   }
 }
 
-/* ══════════════════════════════════════════════
-   SPLASH → LOCK TRANSITION
-   ══════════════════════════════════════════════ */
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    var sp = document.getElementById('splash');
-    sp.classList.add('fade-out');
-    setTimeout(function() {
-      sp.style.display = 'none';
-      document.getElementById('lock-screen').classList.add('visible');
-    }, 850);
-  }, 2800);
-});
-
-/* ══════════════════════════════════════════════
-   OPERATOR STATE
-   ══════════════════════════════════════════════ */
-var _ceiling       = 500000;
-var _seed          = 25000;
-var _totalHits     = 0;
-var _connectedDevs = 0;
-var _currentVal    = 0;
-var _contribRate   = 0.02;
-var _lastSpinMap   = {};   /* sessionKey → lastSpin timestamp */
-var _hitHistory    = [];
-var _activeTab     = 'dashboard';
-var _inactiveTimer = null;
-var _lastSpinTime  = null;
-var _forceArmed    = false;
-var _msgText       = '';
-
-/* ══════════════════════════════════════════════
-   APP START — called after correct PIN
-   ══════════════════════════════════════════════ */
-function _startApp() {
-  /* Set PROG_GAME_ID to 'operator' so progressive.js identifies this session */
-  if (typeof PROG_GAME_ID !== 'undefined') PROG_GAME_ID = 'operator';
-
-  Progressive.init(function() {
-    _updateConnBadge(Progressive.isConnected());
-    _loadHitHistory();
-    showTab('dashboard');
-  });
-
-  /* ── Live jackpot value ── */
-  Progressive.onChange(function(val) {
-    _currentVal = val;
-    document.getElementById('pot-val').textContent = Progressive.getDisplay();
-    _updateProgressBar();
-    if (_activeTab === 'dashboard') _renderDashboard();
-  });
-
-  /* ── Live device count (presence) ── */
-  Progressive.onPresenceChange(function(count) {
-    _connectedDevs = count;
-    document.getElementById('conn-badge').textContent = Progressive.isConnected() ? 'LIVE' : 'OFFLINE';
-    document.getElementById('conn-badge').className   = Progressive.isConnected() ? 'ok' : 'err';
-    if (_activeTab === 'dashboard') _renderDashboard();
-    _updatePotMeta();
-  });
-
-  /* ── Force jackpot win on another device ── */
-  Progressive.onForceNotify(function(amt, gameId) {
-    _showToast('JP HIT on ' + gameId + ': $' + amt.toFixed(2));
-    _forceArmed = false;
-    document.getElementById('armed-banner') && (document.getElementById('armed-banner').classList.remove('show'));
-    _loadHitHistory();
-    if (_activeTab === 'dashboard') _renderDashboard();
-  });
-
-  /* ── Broadcast messages received ── */
-  Progressive.onMessage(function(msg) {
-    _showToast(msg.body || msg.message || 'New message');
-  });
-
-  /* ── Check for inactive devices every 30s ── */
-  setInterval(function() {
-    if (_activeTab === 'dashboard') _renderDashboard();
-  }, 30000);
-}
-
-function _updateConnBadge(ok) {
-  var b = document.getElementById('conn-badge');
-  b.textContent = ok ? 'LIVE' : 'OFFLINE';
-  b.className   = 'conn-badge ' + (ok ? 'ok' : 'err');
-  // also update pot-meta
-  _updatePotMeta();
-}
-
-function _updatePotMeta() {
-  document.getElementById('pot-meta').innerHTML =
-    'Cap: $' + _fmtNum(_ceiling) + '<br>' +
-    'Seed: $' + _fmtNum(_seed)   + '<br>' +
-    'Hits: ' + _totalHits;
-}
-
-function _updateProgressBar() {
-  var range = _ceiling - _seed;
-  var pct   = range > 0 ? Math.min(100, ((_currentVal - _seed) / range) * 100) : 0;
-  document.getElementById('pot-progress-bar').style.width = pct.toFixed(1) + '%';
-}
-
-function _fmtNum(n) {
-  return parseFloat(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-}
-function _fmtMoney(n) {
-  return '$' + _fmtNum(n);
-}
-function _timeAgo(iso) {
-  if (!iso) return 'never';
-  var diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return diff + 's ago';
-  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-  return Math.floor(diff/3600) + 'h ago';
-}
-
-/* ══════════════════════════════════════════════
-   TAB RENDERING
-   ══════════════════════════════════════════════ */
+/* ── Tab switching ── */
 function showTab(name) {
-  _activeTab = name;
-  var tabs = document.querySelectorAll('.tab');
-  var names = ['dashboard','settings','history','force','msg'];
-  for (var i = 0; i < tabs.length; i++) {
-    tabs[i].className = 'tab' + (names[i] === name ? ' active' : '');
-  }
-  if (name === 'dashboard') _renderDashboard();
-  else if (name === 'settings') _renderSettings();
-  else if (name === 'history')  _renderHistory();
-  else if (name === 'force')    _renderForce();
-  else if (name === 'msg')      _renderMsg();
+  var tabs  = ['control','stats','history','message'];
+  tabs.forEach(function(t) {
+    var pane = document.getElementById('pane-' + t);
+    var tab  = document.getElementById('tab-' + t);
+    if (pane) pane.style.display = (t === name) ? '' : 'none';
+    if (tab)  tab.classList.toggle('active', t === name);
+  });
+  if (name === 'history') loadHistory();
+  if (name === 'stats')   loadStats();
 }
 
-/* ── DASHBOARD ── */
-function _renderDashboard() {
-  var presenceState = {};
-  try {
-    /* Grab presence details if available */
-    if (Progressive && Progressive.getSessionKey) {
-      /* We can't directly access presenceChannel, so we track via onPresenceChange count */
-    }
-  } catch(e) {}
-
-  var connected = _connectedDevs;
-  /* Inactive = connected devices that haven't spun in 4+ min
-     We track lastSpin per device in _lastSpinMap via presence events below */
-  var now = Date.now();
-  var inactiveCount = 0;
-  var deviceRows = '';
-  for (var key in _lastSpinMap) {
-    var info = _lastSpinMap[key];
-    var age  = info.lastSpin ? (now - new Date(info.lastSpin).getTime()) : null;
-    var isInactive = age === null || age > 240000; /* 4 min */
-    if (isInactive) inactiveCount++;
-    deviceRows += '<div class="device-card">' +
-      '<div><div class="device-name">' + (info.gameId || key) + '</div>' +
-      '<div class="device-meta">Last spin: ' + (info.lastSpin ? _timeAgo(info.lastSpin) : 'none') + '</div></div>' +
-      '<div class="device-status ' + (isInactive ? 'inactive' : 'active') + '">' + (isInactive ? 'INACTIVE' : 'ACTIVE') + '</div>' +
-      '</div>';
-  }
-  if (!deviceRows && connected === 0) {
-    deviceRows = '<div style="font-size:11px;color:var(--dim);padding:8px 0;">No devices connected</div>';
-  }
-
-  var html =
-    '<div class="section">' +
-    '<div class="sec-title">Pot Status</div>' +
-    '<div id="pot-progress-wrap2" style="height:4px;background:rgba(255,215,0,.1);border-radius:2px;overflow:hidden;margin-bottom:10px;">' +
-    '<div style="height:100%;width:' + (function(){var r=_ceiling-_seed;return r>0?Math.min(100,((_currentVal-_seed)/r)*100).toFixed(1):0;}()) + '%;background:linear-gradient(90deg,#b8860b,#ffd700);border-radius:2px;box-shadow:0 0 6px #ffd700;"></div>' +
-    '</div>' +
-    '<div class="stats-grid">' +
-    '<div class="stat-card"><div class="stat-val">' + Progressive.getDisplay() + '</div><div class="stat-lbl">Current Pot</div></div>' +
-    '<div class="stat-card"><div class="stat-val">' + _fmtMoney(_ceiling) + '</div><div class="stat-lbl">Must-Hit Cap</div></div>' +
-    '<div class="stat-card"><div class="stat-val">' + (_contribRate*100).toFixed(1) + '%</div><div class="stat-lbl">Contrib Rate</div></div>' +
-    '<div class="stat-card"><div class="stat-val">' + _totalHits + '</div><div class="stat-lbl">Total Hits</div></div>' +
-    '<div class="stat-card"><div class="stat-val">' + connected + '</div><div class="stat-lbl">Connected</div></div>' +
-    '<div class="stat-card" style="border-color:' + (_forceArmed ? '#ff4400' : 'var(--border)') + '">' +
-    '<div class="stat-val" style="color:' + (_forceArmed ? '#ff4400' : 'var(--green)') + '">' + (_forceArmed ? 'ARMED' : 'READY') + '</div>' +
-    '<div class="stat-lbl">Force JP</div></div>' +
-    '</div></div>' +
-
-    '<div class="section">' +
-    '<div class="sec-title">Devices (' + connected + ' connected, ' + inactiveCount + ' inactive)</div>' +
-    deviceRows +
-    '</div>' +
-
-    '<div class="section">' +
-    '<div class="sec-title">Last Hit</div>' +
-    (_hitHistory.length ? (
-      '<div class="hit-row">' +
-      '<div class="hit-amt">' + _fmtMoney(_hitHistory[0].amount) + '</div>' +
-      '<div class="hit-game">' + (_hitHistory[0].game_id || '—') + '</div>' +
-      '<div class="hit-meta">' + (_hitHistory[0].created_at ? _timeAgo(_hitHistory[0].created_at) : '') + '</div>' +
-      '</div>'
-    ) : '<div style="font-size:11px;color:var(--dim);padding:8px 0;">No hits recorded yet.</div>') +
-    '</div>' +
-
-    '<div class="section">' +
-    '<div class="sec-title">Connection</div>' +
-    '<div class="row"><div><div class="row-lbl">Supabase Realtime</div><div class="row-sub">Pot syncs across all devices live</div></div>' +
-    '<div class="row-val" style="color:' + (Progressive.isConnected() ? 'var(--green)' : 'var(--danger)') + '">' + (Progressive.isConnected() ? 'ONLINE' : 'OFFLINE') + '</div></div>' +
-    '</div>';
-
-  document.getElementById('tab-content').innerHTML = html;
+/* ── Toast ── */
+function toast(msg) {
+  var el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('on');
+  setTimeout(function() { el.classList.remove('on'); }, 2500);
 }
 
-/* ── SETTINGS ── */
-function _renderSettings() {
-  var html =
-    '<div class="section"><div class="sec-title">Jackpot Config</div>' +
-    '<div class="row"><div><div class="row-lbl">Seed Value</div><div class="row-sub">Reset amount after hit</div></div>' +
-    '<input class="inp" id="set-seed" type="number" value="' + _seed + '"></div>' +
-    '<div class="row"><div><div class="row-lbl">Cap (Must-Hit)</div><div class="row-sub">Force trigger at this amount</div></div>' +
-    '<input class="inp" id="set-cap" type="number" value="' + _ceiling + '"></div>' +
-    '<div class="row"><div><div class="row-lbl">Contrib Rate</div><div class="row-sub">% of each bet added to pot</div></div>' +
-    '<input class="inp" id="set-rate" type="number" step="0.001" value="' + _contribRate + '"></div>' +
-    '<button class="btn btn-gold btn-full" onclick="saveSettings()">Save Settings</button>' +
-    '</div>' +
-    '<div class="section"><div class="sec-title">Security</div>' +
-    '<div class="row"><div><div class="row-lbl">Change PIN</div><div class="row-sub">Enter new 4-digit PIN</div></div>' +
-    '<input class="inp" id="set-pin" type="password" maxlength="4" placeholder="••••" style="width:80px;text-align:center;letter-spacing:4px;"></div>' +
-    '<button class="btn btn-gold btn-full" onclick="savePIN()" style="margin-top:4px;">Save New PIN</button>' +
-    '</div>' +
-    '<button class="btn btn-danger btn-full" onclick="resetPot()">Reset Pot to Seed</button>' +
-    '</div>';
-  document.getElementById('tab-content').innerHTML = html;
-}
-
-function saveSettings() {
-  var seed = parseFloat(document.getElementById('set-seed').value);
-  var cap  = parseFloat(document.getElementById('set-cap').value);
-  var rate = parseFloat(document.getElementById('set-rate').value);
-  if (isNaN(seed)||isNaN(cap)||isNaN(rate)||cap<=seed||rate<=0||rate>=1) {
-    _showToast('Invalid values — check inputs'); return;
-  }
-  _seed        = seed;
-  _ceiling     = cap;
-  _contribRate = rate;
-  _updatePotMeta();
-  /* Push to Supabase */
-  if (Progressive.isConnected && Progressive.isConnected()) {
-    /* Access the internal client via a helper if needed — or use direct fetch */
-    _supabasePatch({ seed: seed, ceiling: cap, contrib_rate: rate });
-    _showToast('Settings saved');
-  } else {
-    _showToast('Saved locally — not connected');
-  }
-}
-
-function savePIN() {
-  var newPin = document.getElementById('set-pin') ? document.getElementById('set-pin').value.trim() : '';
-  if (!/^\d{4}$/.test(newPin)) { _showToast('PIN must be exactly 4 digits'); return; }
-  PIN_CODE = newPin;
-  try { localStorage.setItem('op_pin', newPin); } catch(e) {}
-  _showToast('PIN updated');
-  _renderSettings();
-}
-  if (!confirm('Reset pot to seed $' + _seed + '?')) return;
-  _supabasePatch({ value: _seed });
-  _showToast('Pot reset to seed');
-}
-
-/* Direct Supabase PATCH for operator-only writes */
-function _supabasePatch(fields) {
-  var url = 'https://gdmmoeggkqsvqnqyrubx.supabase.co/rest/v1/progressive?id=eq.1';
-  var xhr = new XMLHttpRequest();
-  xhr.open('PATCH', url, true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.setRequestHeader('apikey', 'sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.setRequestHeader('Authorization', 'Bearer sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.setRequestHeader('Prefer', 'return=minimal');
-  xhr.send(JSON.stringify(fields));
-}
-
-/* ── HISTORY ── */
-function _renderHistory() {
-  if (!_hitHistory.length) {
-    document.getElementById('tab-content').innerHTML =
-      '<div style="font-size:11px;color:var(--dim);padding:16px 0;text-align:center;">No jackpot history yet.</div>';
-    return;
-  }
-  var html = '<div class="section"><div class="sec-title">Jackpot History (' + _hitHistory.length + ')</div>';
-  for (var i = 0; i < _hitHistory.length; i++) {
-    var h = _hitHistory[i];
-    html += '<div class="hit-row">' +
-      '<div class="hit-amt">' + _fmtMoney(h.amount) + '</div>' +
-      '<div class="hit-game">' + (h.game_id || '—') + '</div>' +
-      '<div class="hit-meta">' + (h.pattern || '') + ' · ' + (h.created_at ? new Date(h.created_at).toLocaleString() : '') + '</div>' +
-      '</div>';
-  }
-  html += '</div>';
-  document.getElementById('tab-content').innerHTML = html;
-}
-
-function _loadHitHistory() {
-  var url = 'https://gdmmoeggkqsvqnqyrubx.supabase.co/rest/v1/progressive_hits?order=id.desc&limit=50';
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', url, true);
-  xhr.setRequestHeader('apikey', 'sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.setRequestHeader('Authorization', 'Bearer sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.onload = function() {
-    if (xhr.status === 200) {
-      try {
-        _hitHistory = JSON.parse(xhr.responseText) || [];
-        _totalHits  = _hitHistory.length;
-        _updatePotMeta();
-        if (_activeTab === 'dashboard') _renderDashboard();
-        if (_activeTab === 'history')   _renderHistory();
-      } catch(e) {}
-    }
-  };
-  xhr.send();
-}
-
-/* Load progressive config (seed/ceiling/rate) from DB on start */
-function _loadConfig() {
-  var url = 'https://gdmmoeggkqsvqnqyrubx.supabase.co/rest/v1/progressive?id=eq.1&select=seed,ceiling,contrib_rate,trigger_odds';
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', url, true);
-  xhr.setRequestHeader('apikey', 'sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.setRequestHeader('Authorization', 'Bearer sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.onload = function() {
-    if (xhr.status === 200) {
-      try {
-        var rows = JSON.parse(xhr.responseText);
-        if (rows && rows[0]) {
-          _seed        = parseFloat(rows[0].seed)         || _seed;
-          _ceiling     = parseFloat(rows[0].ceiling)      || _ceiling;
-          _contribRate = parseFloat(rows[0].contrib_rate) || _contribRate;
-          _updatePotMeta();
-          _updateProgressBar();
-        }
-      } catch(e) {}
-    }
-  };
-  xhr.send();
-}
-
-/* ── FORCE JP ── */
-function _renderForce() {
-  var html =
-    '<div class="section"><div class="sec-title">Force Jackpot</div>' +
-    '<div style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:12px;">' +
-    'Arms a force-jackpot command in Supabase. The next device to spin will claim it.' +
-    '</div>' +
-    '<div id="force-status" style="text-align:center;font-size:13px;color:' + (_forceArmed ? '#ff4400' : 'var(--green)') + ';font-weight:bold;margin-bottom:12px;">' +
-    (_forceArmed ? '&#9888; ARMED — waiting for next spin' : 'READY') +
-    '</div>' +
-    '<button class="btn btn-danger btn-full" onclick="armForce()" ' + (_forceArmed ? 'disabled style="opacity:.5"' : '') + '>&#9888; ARM FORCE JACKPOT</button>' +
-    '</div>';
-  document.getElementById('tab-content').innerHTML = html;
-}
-
-function armForce() {
-  if (_forceArmed) { _showToast('Already armed'); return; }
-  var url = 'https://gdmmoeggkqsvqnqyrubx.supabase.co/rest/v1/progressive_commands';
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', url, true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.setRequestHeader('apikey', 'sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.setRequestHeader('Authorization', 'Bearer sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.setRequestHeader('Prefer', 'return=minimal');
-  xhr.onload = function() {
-    if (xhr.status >= 200 && xhr.status < 300) {
-      _forceArmed = true;
-      _showToast('Force jackpot ARMED');
-      _renderForce();
-      if (_activeTab === 'dashboard') _renderDashboard();
-    } else {
-      _showToast('Error arming — check connection');
-    }
-  };
-  xhr.send(JSON.stringify({ command: 'force_jackpot', status: 'armed' }));
-}
-
-/* ── MSG ── */
-function _renderMsg() {
-  var html =
-    '<div class="section"><div class="sec-title">Broadcast Message</div>' +
-    '<div class="msg-compose">' +
-    '<textarea id="msg-body" rows="4" placeholder="Type a message to all players...">' + _msgText + '</textarea>' +
-    '<button class="btn btn-gold btn-full" onclick="sendMsg()" style="margin-top:8px;">Send to All Devices</button>' +
-    '</div></div>';
-  document.getElementById('tab-content').innerHTML = html;
-  var ta = document.getElementById('msg-body');
-  if (ta) ta.addEventListener('input', function(){ _msgText = ta.value; });
-}
-
-function sendMsg() {
-  var body = (document.getElementById('msg-body') ? document.getElementById('msg-body').value : '').trim();
-  if (!body) { _showToast('Message is empty'); return; }
-  var url = 'https://gdmmoeggkqsvqnqyrubx.supabase.co/rest/v1/broadcast_messages';
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', url, true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.setRequestHeader('apikey', 'sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.setRequestHeader('Authorization', 'Bearer sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd');
-  xhr.setRequestHeader('Prefer', 'return=minimal');
-  xhr.onload = function() {
-    if (xhr.status >= 200 && xhr.status < 300) {
-      _showToast('Message sent!');
-      _msgText = '';
-      _renderMsg();
-    } else {
-      _showToast('Send failed — check connection');
-    }
-  };
-  xhr.send(JSON.stringify({ body: body, sender: 'operator' }));
-}
-
-/* ══════════════════════════════════════════════
-   TOAST
-   ══════════════════════════════════════════════ */
-var _toastTimer = null;
-function _showToast(msg) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('on');
-  if (_toastTimer) clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(function(){ t.classList.remove('on'); }, 2800);
-}
-
-/* ══════════════════════════════════════════════
-   PRESENCE STATE TRACKING
-   We hook into Supabase presence via a second
-   channel subscription here in the operator so
-   we can see per-device lastSpin timestamps.
-   ══════════════════════════════════════════════ */
-window.addEventListener('load', function() {
-  /* We set up a separate presence listener here so operator can see device details */
-  var _presWatcher = null;
-  var _watchInterval = setInterval(function() {
-    if (typeof window.supabase === 'undefined') return;
-    clearInterval(_watchInterval);
-    try {
-      var client = window.supabase.createClient(
-        'https://gdmmoeggkqsvqnqyrubx.supabase.co',
-        'sb_publishable_NGsKBAUUsVUvD5XKTblIdw_aBDPldSd'
-      );
-      _presWatcher = client.channel('presence-lobby');
-      _presWatcher
-        .on('presence', { event: 'sync' }, function() {
-          var state = _presWatcher.presenceState();
-          _lastSpinMap = {};
-          for (var key in state) {
-            var entries = state[key];
-            if (entries && entries.length) {
-              _lastSpinMap[key] = entries[0];
-            }
-          }
-          _connectedDevs = Object.keys(_lastSpinMap).length;
-          if (_activeTab === 'dashboard') _renderDashboard();
-        })
-        .subscribe();
-    } catch(e) { console.warn('[Operator] presence watcher error:', e); }
-  }, 500);
-
-  /* Also load config once SDK is ready */
-  var _cfgInterval = setInterval(function() {
-    if (typeof window.supabase === 'undefined') return;
-    clearInterval(_cfgInterval);
-    _loadConfig();
-    _loadHitHistory();
-    /* Reload hit history every 60s */
-    setInterval(_loadHitHistory, 60000);
-  }, 500);
-});
-
+/* ── Stubs — progressive.js provides the Supabase logic.
+      These are safe fallbacks so the UI doesn't crash if progressive.js
+      hasn't loaded yet or has an error. ── */
+function saveSeed()            { if(window._op_saveSeed)   window._op_saveSeed();   else toast('Not connected'); }
+function armJackpot()          { if(window._op_arm)        window._op_arm();        else toast('Not connected'); }
+function disarmJackpot()       { if(window._op_disarm)     window._op_disarm();     else toast('Not connected'); }
+function setPotManual()        { if(window._op_setPot)     window._op_setPot();     else toast('Not connected'); }
+function triggerJackpotManual(){ if(window._op_trigger)    window._op_trigger();    else toast('Not connected'); }
+function sendMessage()         { if(window._op_sendMsg)    window._op_sendMsg();    else toast('Not connected'); }
+function loadHistory()         { if(window._op_loadHist)   window._op_loadHist();   }
+function loadStats()           { if(window._op_loadStats)  window._op_loadStats();  }
 </script>
 </body>
 </html>
