@@ -422,15 +422,41 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
 
 <script>
 (function(){
-  var done = false;
+  /* Start DB connection immediately during splash so it's ready before PIN entry */
+  var _splashConnDone = false;
+  var _splashTimerDone = false;
+
   function killSplash() {
-    if (done) return; done = true;
     var sp = document.getElementById('splash');
     if (!sp) return;
     sp.style.cssText += ';pointer-events:none!important;touch-action:none!important;z-index:-999!important;opacity:0;transition:opacity 0.3s';
     setTimeout(function(){ sp.style.display='none'; }, 350);
   }
-  setTimeout(killSplash, 1800);
+
+  function checkKillSplash() {
+    if (_splashTimerDone && _splashConnDone) killSplash();
+  }
+
+  /* Minimum splash display time */
+  setTimeout(function(){ _splashTimerDone = true; checkKillSplash(); }, 1800);
+
+  /* Preload Supabase SDK during splash so DB is ready by PIN entry */
+  function preloadDB() {
+    if (typeof window.supabase !== 'undefined') {
+      _splashConnDone = true; checkKillSplash(); return;
+    }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+    s.onload  = function(){ _splashConnDone = true; checkKillSplash(); };
+    s.onerror = function(){ _splashConnDone = true; checkKillSplash(); };
+    document.head.appendChild(s);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', preloadDB);
+  } else {
+    preloadDB();
+  }
 }());
 </script>
 <div id="lock-screen">
@@ -578,7 +604,7 @@ var _presenceCount = 0;
 var _presenceState = {};   /* key → {gameId, joinedAt, lastSpin} */
 var _forceIsArmed  = false;
 var _inactiveTimer = null;
-var INACTIVE_MS    = 4 * 60 * 1000;  /* 4 minutes */
+var INACTIVE_MS    = 60 * 1000;  /* 60 seconds */
 
 /* ══════════════════════════════════════════════════════════════════════
    PIN
