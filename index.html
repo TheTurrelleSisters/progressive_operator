@@ -42,6 +42,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .pin-dot    { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--gold-dk); background: transparent; transition: background .15s; }
 .pin-dot.filled { background: var(--gold); }
 #pin-error  { color: var(--danger); font-size: 11px; height: 14px; }
+#username-field { width: 200px; padding: 10px 12px; background: #0d0d1a; border: 1.5px solid var(--gold-dk); border-radius: 8px; color: var(--gold); font-size: 13px; text-align: center; outline: none; letter-spacing: 1px; }
+#username-field::placeholder { color: var(--dim); letter-spacing: 1px; }
+#username-field:focus { border-color: var(--gold); }
 #pin-grid   { display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; }
 .pkey {
   height: 56px; border-radius: 10px; border: 1.5px solid var(--border);
@@ -307,74 +310,10 @@ html,body{width:100%;height:100%;background:#05000f;overflow:hidden;
   cursor: pointer; text-transform: uppercase;
 }
 
-/* ── INSTALL BUTTON ── */
-#install-btn {
-  display: none;
-  position: fixed;
-  bottom: 22px; right: 16px;
-  z-index: 800;
-  background: linear-gradient(135deg,#1a0030,#3a006a);
-  border: 1.5px solid var(--gold-dk);
-  border-radius: 28px;
-  padding: 10px 18px 10px 14px;
-  color: var(--gold);
-  font-size: 11px; font-weight: 900; letter-spacing: 1px;
-  text-transform: uppercase; cursor: pointer;
-  box-shadow: 0 0 18px rgba(255,215,0,.25);
-  transition: box-shadow .2s, transform .1s;
-}
-#install-btn.visible { display: flex; align-items: center; gap: 7px; }
-#install-btn:active { transform: scale(.95); }
-#install-btn svg { flex-shrink: 0; }
-
-/* ── INSTALL MODAL (iOS / Samsung fallback) ── */
-#install-modal {
-  display: none;
-  position: fixed; inset: 0; z-index: 9000;
-  background: rgba(0,0,0,.75);
-  align-items: flex-end; justify-content: center;
-}
-#install-modal.show { display: flex; }
-#install-modal-inner {
-  background: var(--bg2);
-  border: 1.5px solid var(--gold-dk);
-  border-radius: 18px 18px 0 0;
-  padding: 20px 18px 30px;
-  width: 100%; max-width: 440px;
-  animation: slideUp .25s ease;
-}
-@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-#install-modal-inner h3 {
-  font-size: 13px; color: var(--gold); letter-spacing: 2px;
-  text-transform: uppercase; margin-bottom: 14px; text-align: center;
-}
-.install-step {
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 10px 0; border-bottom: 1px solid var(--border);
-}
-.install-step:last-of-type { border-bottom: none; }
-.install-step-num {
-  width: 24px; height: 24px; border-radius: 50%;
-  background: var(--gold-dk); color: #000;
-  font-size: 11px; font-weight: 900; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-.install-step-text { font-size: 11px; color: var(--text); line-height: 1.6; font-family: Arial, sans-serif; font-weight: normal; }
-.install-step-text b { color: var(--gold); }
-#install-modal-close {
-  width: 100%; margin-top: 16px; padding: 12px;
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 8px; color: var(--dim);
-  font-size: 11px; font-weight: bold; letter-spacing: 1px;
-  text-transform: uppercase; cursor: pointer;
-}
-
 </style>
 <script>
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("service-worker.js").catch(function(e){console.warn(e);});});}
 </script>
-<!-- FIX-1: Preload Supabase SDK immediately so it is ready before PIN entry -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 
@@ -415,54 +354,29 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v2.6</div>
+  <div id="splash-ver">v2.4</div>
 </div>
 
 
 
 <script>
 (function(){
-  /* Start DB connection immediately during splash so it's ready before PIN entry */
-  var _splashConnDone = false;
-  var _splashTimerDone = false;
-
+  var done = false;
   function killSplash() {
+    if (done) return; done = true;
     var sp = document.getElementById('splash');
     if (!sp) return;
     sp.style.cssText += ';pointer-events:none!important;touch-action:none!important;z-index:-999!important;opacity:0;transition:opacity 0.3s';
     setTimeout(function(){ sp.style.display='none'; }, 350);
   }
-
-  function checkKillSplash() {
-    if (_splashTimerDone && _splashConnDone) killSplash();
-  }
-
-  /* Minimum splash display time */
-  setTimeout(function(){ _splashTimerDone = true; checkKillSplash(); }, 1800);
-
-  /* Preload Supabase SDK during splash so DB is ready by PIN entry */
-  function preloadDB() {
-    if (typeof window.supabase !== 'undefined') {
-      _splashConnDone = true; checkKillSplash(); return;
-    }
-    var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
-    s.onload  = function(){ _splashConnDone = true; checkKillSplash(); };
-    s.onerror = function(){ _splashConnDone = true; checkKillSplash(); };
-    document.head.appendChild(s);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', preloadDB);
-  } else {
-    preloadDB();
-  }
+  setTimeout(killSplash, 1800);
 }());
 </script>
 <div id="lock-screen">
   <div id="lock-title">Stray-Pup LLC</div>
   <div id="lock-logo">PROGRESSIVE<br>OPERATOR</div>
-  <div id="lock-sub">ENTER PIN TO CONTINUE</div>
+  <div id="lock-sub">ENTER USERNAME &amp; PIN</div>
+  <input id="username-field" type="text" placeholder="Your name" maxlength="24" autocomplete="off" spellcheck="false">
   <div id="pin-dots">
     <div class="pin-dot" id="d0"></div>
     <div class="pin-dot" id="d1"></div>
@@ -527,60 +441,6 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
   </div>
 </div>
 
-<!-- ── INSTALL BUTTON ── -->
-<button id="install-btn" onclick="installApp()" aria-label="Install app">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 3v13M7 11l5 5 5-5"/><rect x="3" y="18" width="18" height="3" rx="1"/>
-  </svg>
-  Add to Home Screen
-</button>
-
-<!-- ── iOS / SAMSUNG BROWSER INSTALL INSTRUCTIONS MODAL ── -->
-<div id="install-modal" onclick="closeInstallModal(event)">
-  <div id="install-modal-inner">
-    <h3>&#9733; Install to Home Screen</h3>
-    <div id="install-steps-ios" style="display:none">
-      <div class="install-step">
-        <div class="install-step-num">1</div>
-        <div class="install-step-text">Tap the <b>Share button</b> <b>&#8679;</b> at the bottom of Safari (the box with the arrow pointing up)</div>
-      </div>
-      <div class="install-step">
-        <div class="install-step-num">2</div>
-        <div class="install-step-text">Scroll down and tap <b>&ldquo;Add to Home Screen&rdquo;</b></div>
-      </div>
-      <div class="install-step">
-        <div class="install-step-num">3</div>
-        <div class="install-step-text">Tap <b>&ldquo;Add&rdquo;</b> in the top-right corner</div>
-      </div>
-    </div>
-    <div id="install-steps-samsung" style="display:none">
-      <div class="install-step">
-        <div class="install-step-num">1</div>
-        <div class="install-step-text">Tap the <b>Menu button</b> &#8942; (three dots) in the bottom-right of Samsung Browser</div>
-      </div>
-      <div class="install-step">
-        <div class="install-step-num">2</div>
-        <div class="install-step-text">Tap <b>&ldquo;Add page to&rdquo;</b> then <b>&ldquo;Home screen&rdquo;</b></div>
-      </div>
-      <div class="install-step">
-        <div class="install-step-num">3</div>
-        <div class="install-step-text">Tap <b>&ldquo;Add&rdquo;</b> to confirm</div>
-      </div>
-    </div>
-    <div id="install-steps-generic" style="display:none">
-      <div class="install-step">
-        <div class="install-step-num">1</div>
-        <div class="install-step-text">Open your browser&rsquo;s <b>Menu</b> (usually three dots &#8942;)</div>
-      </div>
-      <div class="install-step">
-        <div class="install-step-num">2</div>
-        <div class="install-step-text">Look for <b>&ldquo;Add to Home Screen&rdquo;</b> or <b>&ldquo;Install App&rdquo;</b></div>
-      </div>
-    </div>
-    <button id="install-modal-close" onclick="closeInstallModal()">Got it &mdash; Close</button>
-  </div>
-</div>
-
 <div id="toast"></div>
 
 <script>
@@ -604,7 +464,10 @@ var _presenceCount = 0;
 var _presenceState = {};   /* key → {gameId, joinedAt, lastSpin} */
 var _forceIsArmed  = false;
 var _inactiveTimer = null;
-var INACTIVE_MS    = 60 * 1000;  /* 60 seconds */
+var INACTIVE_MS    = 4 * 60 * 1000;  /* 4 minutes */
+var _operatorUsername = 'operator';   /* set on login */
+var _playerIdMap   = {};              /* sessionKey → Player ID number */
+var _nextPlayerId  = 1;               /* auto-increment player ID counter */
 
 /* ══════════════════════════════════════════════════════════════════════
    PIN
@@ -617,9 +480,19 @@ function pk(d) {
 }
 function pkClear() { _pinBuf = ''; updateDots(); document.getElementById('pin-error').textContent = ''; }
 function pkEnter() {
+  var usernameEl = document.getElementById('username-field');
+  var username = usernameEl ? usernameEl.value.trim() : '';
+  if (!username) {
+    document.getElementById('pin-error').textContent = 'Enter your name first';
+    _pinBuf = ''; updateDots(); return;
+  }
   if (_pinBuf === OP_PIN) {
+    _operatorUsername = username;
     document.getElementById('lock-screen').style.display = 'none';
     document.getElementById('app').classList.add('visible');
+    /* Show operator name in header */
+    var titleEl = document.getElementById('app-title');
+    if (titleEl) titleEl.textContent = '\u2605 Operator: ' + username;
     initSupabase();
   } else {
     document.getElementById('pin-error').textContent = 'Incorrect PIN';
@@ -637,26 +510,30 @@ function updateDots() {
    ══════════════════════════════════════════════════════════════════════ */
 function initSupabase() {
   setConnStatus('connecting');
-  /* FIX-1: SDK is preloaded in <head> — no dynamic createElement needed */
-  try {
-    _client    = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    fetchRow(function() {
-      _connected = true;
-      document.getElementById('conn-badge').className = 'ok';
-      document.getElementById('conn-badge').textContent = 'LIVE';
-      setConnStatus('connected');
-      fetchHits();
-      fetchMessages();
-      subscribeRealtime();
-      subscribePresence();
-      subscribeCommands();
-      startInactiveTimer();
-      /* FIX-3: refresh presence counts after UI is ready */
-      setTimeout(_updatePresenceCounts, 500);
-    });
-  } catch(e) {
-    setOffline();
-  }
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+  s.onload = function() {
+    try {
+      setConnStatus('connecting');
+      _client    = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      fetchRow(function() {
+        _connected = true;
+        document.getElementById('conn-badge').className = 'ok';
+        document.getElementById('conn-badge').textContent = 'LIVE';
+        setConnStatus('connected');
+        fetchHits();
+        fetchMessages();
+        subscribeRealtime();
+        subscribePresence();
+        subscribeCommands();
+        startInactiveTimer();
+      });
+    } catch(e) {
+      setOffline();
+    }
+  };
+  s.onerror = setOffline;
+  document.head.appendChild(s);
 }
 
 function setConnStatus(state) {
@@ -722,7 +599,13 @@ function subscribePresence() {
     /* Supabase presence: each key maps to an array of presence payloads */
     Object.keys(state).forEach(function(k) {
       var entries = state[k];
-      if (entries && entries.length > 0) _presenceState[k] = entries[0];
+      if (entries && entries.length > 0) {
+        _presenceState[k] = entries[0];
+        /* Assign a Player ID if this is a new non-operator session */
+        if (entries[0].gameId !== 'operator' && !_playerIdMap[k]) {
+          _playerIdMap[k] = _nextPlayerId++;
+        }
+      }
     });
     _updatePresenceCounts();
   }
@@ -734,10 +617,6 @@ function subscribePresence() {
     .subscribe(function(status) {
       if (status === 'SUBSCRIBED') {
         presenceCh.track({ gameId: 'operator', joinedAt: new Date().toISOString(), lastSpin: null });
-        /* FIX-2: Re-sync after track() completes — presence state may
-           already contain connected game clients that haven't fired events */
-        setTimeout(_syncPresence, 1500);
-        setTimeout(_syncPresence, 4000);
       }
     });
 }
@@ -771,6 +650,30 @@ function startInactiveTimer() {
   _inactiveTimer = setInterval(_updatePresenceCounts, 30000);
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PLAYER ID HELPERS
+   ══════════════════════════════════════════════════════════════════════ */
+function _getPlayerLabel(sessionKey) {
+  if (!sessionKey) return '—';
+  var id = _playerIdMap[sessionKey];
+  return id ? 'Player ' + id : sessionKey.substr(0, 8);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   AUDIT LOG  (in-memory, newest first)
+   ══════════════════════════════════════════════════════════════════════ */
+var _auditLog = [];
+function _audit(action, detail) {
+  _auditLog.unshift({
+    ts:       new Date().toISOString(),
+    operator: _operatorUsername,
+    action:   action,
+    detail:   detail || ''
+  });
+  if (_auditLog.length > 200) _auditLog.length = 200;
+  if (_activeTab === 'history') renderTab();
+}
+
 function subscribeCommands() {
   _client.channel('op-commands')
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_commands' }, function(p) {
@@ -792,6 +695,9 @@ function subscribeCommands() {
         var tabs = document.querySelectorAll('.tab');
         if (tabs[3]) { tabs[3].style.color=''; tabs[3].textContent='Force'; }
         if (_activeTab === 'force') renderTab();
+        var winPlayerLabel = _getPlayerLabel(p.new.winner_session || null);
+        var winMsg = _gameName(p.new.winner_game) + ' won ' + _fmtMoney(Number(p.new.winner_amt||0)) + ' — ' + winPlayerLabel;
+        _audit('FORCE JACKPOT HIT', winMsg);
         toast('&#127881; ' + _gameName(p.new.winner_game) + ' won ' + _fmtMoney(Number(p.new.winner_amt||0)) + '!');
         fetchRow(); fetchHits();
       }
@@ -807,8 +713,14 @@ function subscribeRealtime() {
       renderTab();
     })
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_hits' }, function(p) {
+      if (!p.new) return;
+      /* Prepend new hit so history stays newest-first */
       _hits.unshift(p.new);
-      if (_activeTab === 'history') renderTab();
+      /* Look up which player this session key belongs to */
+      var playerLabel = _getPlayerLabel(p.new.winner_session || p.new.session_key || null);
+      var gameLabel   = _gameName(p.new.game_id);
+      _audit('JACKPOT HIT', gameLabel + ' — ' + _fmtMoney(Number(p.new.amount||0)) + ' — ' + playerLabel);
+      renderTab();
     })
     .subscribe();
 }
@@ -895,9 +807,10 @@ function sendMessage() {
   _client.from('broadcast_messages').insert({
     message:    msg.value.trim(),
     type:       type ? type.value : 'general',
-    created_by: 'operator'
+    created_by: _operatorUsername
   }).then(function(res) {
     if (res.error) { toast('Send failed: ' + res.error.message); return; }
+    _audit('MESSAGE SENT', (type ? type.value : 'general') + ': ' + msg.value.trim());
     msg.value = '';
     toast('&#9889; Message sent to all players!');
     fetchMessages();
@@ -943,7 +856,8 @@ function renderDashboard() {
     (_hits.length > 0
       ? '<div class="hit-row"><div class="hit-game">' + (_hits[0].game_id||'—') + ' &bull; ' + _denom(_hits[0].denom) + '</div>' +
         '<div class="hit-amt">' + _fmtMoney(Number(_hits[0].amount)) + '</div>' +
-        '<div class="hit-meta">' + (_hits[0].pattern||'') + ' &bull; ' + _balls(_hits[0].balls) + ' &bull; ' + _ts(_hits[0].created_at) + '</div></div>'
+        '<div class="hit-meta">' + (_hits[0].pattern||'') + ' &bull; ' + _balls(_hits[0].balls) + ' &bull; ' + _ts(_hits[0].created_at) + '</div>' +
+        '<div class="hit-meta" style="color:#aaffcc">' + _getPlayerLabel(_hits[0].winner_session || _hits[0].session_key || null) + '</div></div>'
       : '<div style="color:var(--dim);font-size:12px">No hits recorded yet.</div>') +
     '</div>' +
     '<div class="section"><div class="sec-title">Connection</div>' +
@@ -985,17 +899,41 @@ function _gameName(game_id) {
 
 /* ── History ── */
 function renderHistory() {
+  /* ── Hit History ── */
   var h = '<div class="section"><div class="sec-title">Hit History (' + _hits.length + ')</div>';
+  h += '<button class="btn btn-green" style="width:100%;padding:8px;margin-bottom:10px;font-size:10px" ' +
+       'onclick="fetchHits();toast(\'Refreshed\')">REFRESH HITS</button>';
   if (_hits.length === 0) {
     h += '<div style="color:var(--dim);font-size:12px">No jackpot hits yet.</div>';
   } else {
     _hits.forEach(function(hit) {
+      /* Try to resolve the session to a Player ID label */
+      var playerLabel = _getPlayerLabel(hit.winner_session || hit.session_key || null);
       h += '<div class="hit-row">' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
         '<div class="hit-game">' + _gameName(hit.game_id) + ' &bull; ' + _denom(hit.denom) + ' denom</div>' +
         '<div class="hit-amt">' + _fmtMoney(Number(hit.amount)) + '</div></div>' +
         '<div class="hit-meta">' + (hit.pattern||'') + ' &bull; ' + _balls(hit.balls) + ' &bull; Bet: ' + _fmtMoney(Number(hit.bet||0)) + '</div>' +
+        '<div class="hit-meta" style="margin-top:2px;color:#aaffcc">' + playerLabel + '</div>' +
         '<div class="hit-meta" style="margin-top:2px">' + _ts(hit.created_at) + '</div>' +
+        '</div>';
+    });
+  }
+  h += '</div>';
+
+  /* ── Operator Audit Log ── */
+  h += '<div class="section"><div class="sec-title">&#128196; Operator Audit Log (' + _auditLog.length + ')</div>';
+  if (_auditLog.length === 0) {
+    h += '<div style="color:var(--dim);font-size:12px">No operator actions yet this session.</div>';
+  } else {
+    _auditLog.forEach(function(entry) {
+      h += '<div class="hit-row" style="border-left:3px solid #ffd70055;padding-left:8px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="font-size:11px;font-weight:bold;color:var(--gold);letter-spacing:1px">' + entry.action + '</div>' +
+        '<div style="font-size:9px;color:var(--dim)">' + _ts(entry.ts) + '</div>' +
+        '</div>' +
+        (entry.detail ? '<div class="hit-meta" style="margin-top:3px">' + entry.detail + '</div>' : '') +
+        '<div class="hit-meta" style="margin-top:2px;color:#aaccff">&#128100; ' + entry.operator + '</div>' +
         '</div>';
     });
   }
@@ -1041,6 +979,7 @@ function saveSettings() {
     seed: seed, ceiling: ceiling, contrib_rate: contrib, trigger_odds: trigger
   }).eq('id', 1).then(function(res) {
     if (res.error) { toast('Save failed'); return; }
+    _audit('SETTINGS SAVED', 'Seed=$' + seed + ' Ceiling=$' + ceiling + ' Contrib=' + (contrib*100).toFixed(1) + '% Odds=1/' + trigger);
     toast('Settings saved');
     fetchRow();
   });
@@ -1051,6 +990,7 @@ function resetToSeed() {
   if (!confirm('Reset pot to ' + _fmtMoney(Number(_row.seed)) + '?')) return;
   _client.from('progressive').update({ value: _row.seed }).eq('id', 1).then(function(res) {
     if (res.error) { toast('Reset failed'); return; }
+    _audit('POT RESET', 'Reset to seed $' + _fmtMoney(Number(_row.seed)));
     toast('Pot reset to seed');
   });
 }
@@ -1061,6 +1001,7 @@ function setCustomValue() {
   if (isNaN(v) || v < 0) { toast('Invalid value'); return; }
   _client.from('progressive').update({ value: v }).eq('id', 1).then(function(res) {
     if (res.error) { toast('Update failed'); return; }
+    _audit('POT SET', 'Custom value ' + _fmtMoney(v));
     toast('Pot set to ' + _fmtMoney(v));
   });
 }
@@ -1071,6 +1012,7 @@ function forceHit() {
   if (!confirm('ARM force jackpot? Next player to spin wins ' + _fmtMoney(Number(_row.value)) + '!')) return;
   _client.rpc('arm_force_jackpot').then(function(res) {
     if (res.error) { toast('Arm failed: ' + res.error.message); return; }
+    _audit('FORCE JACKPOT ARMED', 'Pot value ' + _fmtMoney(Number(_row.value)));
     _forceIsArmed = true;
     if (_activeTab === 'force') renderTab();
     // Also flash the Force tab label
@@ -1089,6 +1031,7 @@ function cancelForce() {
     .update({ status: 'cancelled' })
     .eq('status', 'armed')
     .then(function(res) {
+      _audit('FORCE JACKPOT CANCELLED', '');
       _forceIsArmed = false;
       // Restore Force tab label
       var tabs = document.querySelectorAll('.tab');
@@ -1127,93 +1070,12 @@ function toast(m) {
   setTimeout(function() { el.classList.remove('on'); }, 2400);
 }
 
-/* ══════════════════════════════════════════════════════════════════════
-   INSTALL / ADD TO HOME SCREEN
-   ══════════════════════════════════════════════════════════════════════ */
-var _installPrompt = null;  /* holds the deferred beforeinstallprompt event */
-
-/* Listen for the browser's native install prompt (Chrome / Edge / Android) */
-window.addEventListener('beforeinstallprompt', function(e) {
-  e.preventDefault();          /* suppress the auto-prompt */
-  _installPrompt = e;
-  showInstallBtn();
-});
-
-/* If already installed as a standalone PWA, hide the button */
-window.addEventListener('appinstalled', function() {
-  hideInstallBtn();
-  _installPrompt = null;
-  toast('&#10003; App installed successfully!');
-});
-
-function showInstallBtn() {
-  /* Only show AFTER the PIN screen is gone */
-  var btn = document.getElementById('install-btn');
-  if (btn) btn.classList.add('visible');
-}
-function hideInstallBtn() {
-  var btn = document.getElementById('install-btn');
-  if (btn) btn.classList.remove('visible');
-}
-
-function installApp() {
-  if (_installPrompt) {
-    /* Chrome / Edge / Samsung Internet (newer) — native prompt */
-    _installPrompt.prompt();
-    _installPrompt.userChoice.then(function(result) {
-      if (result.outcome === 'accepted') {
-        hideInstallBtn();
-        toast('&#10003; Installing&hellip;');
-      }
-      _installPrompt = null;
-    });
-    return;
-  }
-
-  /* No native prompt — show manual instructions based on browser/OS */
-  var ua      = navigator.userAgent || '';
-  var isIOS   = /iP(hone|ad|od)/i.test(ua);
-  var isSamsung = /SamsungBrowser/i.test(ua);
-  var modal   = document.getElementById('install-modal');
-  document.getElementById('install-steps-ios').style.display     = isIOS ? '' : 'none';
-  document.getElementById('install-steps-samsung').style.display = (!isIOS && isSamsung) ? '' : 'none';
-  document.getElementById('install-steps-generic').style.display = (!isIOS && !isSamsung) ? '' : 'none';
-  if (modal) modal.classList.add('show');
-}
-
-function closeInstallModal(e) {
-  /* Close on overlay tap or button click */
-  if (e && e.target !== document.getElementById('install-modal') &&
-      e.target !== document.getElementById('install-modal-close')) return;
-  var modal = document.getElementById('install-modal');
-  if (modal) modal.classList.remove('show');
-}
-
-/* Show install button after PIN is accepted (hooked into pkEnter) */
-(function _patchPkEnter() {
-  var orig = pkEnter;
-  pkEnter = function() {
-    orig();
-    /* Small delay so the app pane is visible first */
-    setTimeout(function() {
-      if (_installPrompt) showInstallBtn();
-      else {
-        /* Show for iOS/Samsung/other browsers that won't fire beforeinstallprompt */
-        var ua = navigator.userAgent || '';
-        var standalone = window.matchMedia('(display-mode: standalone)').matches ||
-                         window.navigator.standalone;
-        if (!standalone) showInstallBtn();
-      }
-    }, 600);
-  };
-}());
-
 /* ── Boot ── */
 renderTab();
 </script>
 <div style="position:fixed;bottom:2px;left:0;right:0;text-align:center;
 font-size:7px;color:rgba(255,215,0,0.18);letter-spacing:2px;pointer-events:none;
 z-index:1;font-family:Arial,sans-serif;font-weight:normal">
-GOLD COINS CASINO &bull; v2.6</div>
+GOLD COINS CASINO &bull; v2.4</div>
 </body>
 </html>
