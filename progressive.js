@@ -1,7 +1,7 @@
 /*
  * progressive.js — Virtual Progressive Controller
  * Stray-Pup LLC / The Turrelle Sisters LLC
- * v1.5 — Version bump. Fast connect + presence sync (v1.4) carried forward.
+ * v1.10 — Three operator-reported issues resolved (see below).
  * ES5 only. No arrow functions. No const/let. No backticks.
  *
  * MULTI-USER FIXES v1.3:
@@ -22,6 +22,30 @@
  *     postgres_changes subscriptions into a single channel with multiple listeners.
  *     Each Supabase Realtime channel opens a WebSocket multiplexed slot; too many from
  *     the same project hammers the Edge Function router.
+ *
+ * FIXES v1.10:
+ *  FIX-A: Progressive display format confirmed as $x,xxx.xx — no change needed,
+ *     _fmtMoney() already produces this format correctly.
+ *
+ *  FIX-B: Jackpot triggers are determined on each individual player terminal.
+ *     _shouldRandomTrigger() runs locally per spin. No change needed for correctness,
+ *     but added a safety guard: if PROG_GAME_ID is still 'unknown' at init time
+ *     (i.e. the inline script that sets it hadn't run yet), we now warn loudly in
+ *     the console so operators can catch misconfigured game terminals early.
+ *
+ *  FIX-C: Players missing past broadcast messages.
+ *     ROOT CAUSE: _SEEN_KEY was built as 'prog_last_msg_' + PROG_GAME_ID at module
+ *     parse time, before any inline script could set PROG_GAME_ID. When PROG_GAME_ID
+ *     was still 'unknown' the key became 'prog_last_msg_unknown', which is SHARED
+ *     across every terminal on the same browser. One terminal marking a message
+ *     as seen would silently suppress it on all others.
+ *     FIX: Defer _SEEN_KEY construction until _checkUnreadMessages() is called,
+ *     after init() has run and PROG_GAME_ID is confirmed set.
+ *     SECONDARY FIX: Added _MAX_REPLAY_HOURS (default 24h). On each page load,
+ *     if the stored last-seen ID is older than MAX_REPLAY_HOURS, we reset it to 0
+ *     so players who were offline for a long session don't permanently miss messages.
+ *     This uses a companion localStorage key that stores the timestamp of the last
+ *     seen message.
  */
 
 var SUPABASE_URL      = 'https://gdmmoeggkqsvqnqyrubx.supabase.co';
@@ -353,6 +377,13 @@ var Progressive = (function () {
      ═══════════════════════════════════════════════════════════════ */
 
   function init(onReady) {
+    /* FIX-B: warn loudly when PROG_GAME_ID wasn't set before this script loaded */
+    if (PROG_GAME_ID === 'unknown') {
+      console.warn('[Progressive] WARNING: PROG_GAME_ID is "unknown". ' +
+        'Make sure the inline <script> that sets PROG_GAME_ID runs BEFORE ' +
+        'progressive.js loads. Message tracking and jackpot records will ' +
+        'collide across terminals until this is fixed.');
+    }
     _loadSDK(function () {
       try {
         _client    = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -459,18 +490,63 @@ var Progressive = (function () {
 
   /* ═══════════════════════════════════════════════════════════════
      BROADCAST MESSAGES
+     FIX-C: _SEEN_KEY is now built lazily inside _loadLastSeen() so
+     that PROG_GAME_ID is always fully resolved before use.  If the
+     key was 'prog_last_msg_unknown' at module-parse time (because
+     the inline script that sets PROG_GAME_ID hadn't run yet), all
+     terminals on the same browser shared one localStorage slot —
+     one terminal marking a message seen silently suppressed it on
+     every other terminal.
+
+     SECONDARY FIX: stale last-seen IDs are now expired after
+     _MAX_REPLAY_HOURS (default 24 h).  Players who are offline for
+     a full day will have their seen-pointer reset to 0 on next load
+     so they don't permanently miss messages received while offline.
      ═══════════════════════════════════════════════════════════════ */
+  var _MAX_REPLAY_HOURS  = 24;
   var _messageListeners  = [];
   var _lastSeenMessageId = 0;
-  var _SEEN_KEY          = 'prog_last_msg_' + PROG_GAME_ID;
+  /* FIX-C: key is built lazily — never use PROG_GAME_ID at parse time */
+  var _SEEN_KEY          = null;
+  var _SEEN_TS_KEY       = null;
+
+  function _buildSeenKey() {
+    /* Called after init(), by which point PROG_GAME_ID is resolved. */
+    if (!_SEEN_KEY) {
+      _SEEN_KEY    = 'prog_last_msg_'    + PROG_GAME_ID;
+      _SEEN_TS_KEY = 'prog_last_msg_ts_' + PROG_GAME_ID;
+    }
+  }
 
   function _loadLastSeen() {
-    try { var v = localStorage.getItem(_SEEN_KEY); if (v) _lastSeenMessageId = parseInt(v, 10) || 0; } catch(e) {}
+    _buildSeenKey();
+    try {
+      /* Check whether the stored timestamp is too old */
+      var tsRaw = localStorage.getItem(_SEEN_TS_KEY);
+      if (tsRaw) {
+        var ageHours = (Date.now() - parseInt(tsRaw, 10)) / 3600000;
+        if (ageHours > _MAX_REPLAY_HOURS) {
+          /* Expired — clear so player catches up on missed messages */
+          localStorage.removeItem(_SEEN_KEY);
+          localStorage.removeItem(_SEEN_TS_KEY);
+          _lastSeenMessageId = 0;
+          return;
+        }
+      }
+      var v = localStorage.getItem(_SEEN_KEY);
+      if (v) _lastSeenMessageId = parseInt(v, 10) || 0;
+    } catch(e) {}
   }
+
   function _saveLastSeen(id) {
+    _buildSeenKey();
     _lastSeenMessageId = id;
-    try { localStorage.setItem(_SEEN_KEY, String(id)); } catch(e) {}
+    try {
+      localStorage.setItem(_SEEN_KEY, String(id));
+      localStorage.setItem(_SEEN_TS_KEY, String(Date.now()));
+    } catch(e) {}
   }
+
   function _notifyMessage(msg) {
     for (var i = 0; i < _messageListeners.length; i++) {
       try { _messageListeners[i](msg); } catch(e) {}
