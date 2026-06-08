@@ -40,6 +40,7 @@ var Progressive = (function () {
   var _seed             = 500.00;
   var _ceiling          = 9999.00;
   var _contribRate      = 0.02;
+  var _triggerOdds      = 500;     /* FIX: 1-in-N base odds for random trigger */
   var _pendingAdd       = 0;
   var _flushTimer       = null;
   var _flushInFlight    = false;   /* FIX-3: guard against concurrent flushes */
@@ -97,6 +98,7 @@ var Progressive = (function () {
       _seed        = parseFloat(d.seed)         || _seed;
       _ceiling     = parseFloat(d.ceiling)      || _ceiling;
       _contribRate = parseFloat(d.contrib_rate) || _contribRate;
+      if (d.trigger_odds != null) _triggerOdds = parseFloat(d.trigger_odds) || _triggerOdds;
       _notifyValue();
       if (cb) cb();
     });
@@ -145,6 +147,7 @@ var Progressive = (function () {
         _seed        = parseFloat(p.new.seed)         || _seed;
         _ceiling     = parseFloat(p.new.ceiling)      || _ceiling;
         _contribRate = parseFloat(p.new.contrib_rate) || _contribRate;
+        if (p.new.trigger_odds != null) _triggerOdds = parseFloat(p.new.trigger_odds) || _triggerOdds;
         _notifyValue();
       })
 
@@ -255,7 +258,8 @@ var Progressive = (function () {
           _presenceChannel.track({
             gameId:   PROG_GAME_ID,
             denom:    PROG_DENOM,
-            joinedAt: new Date().toISOString()
+            joinedAt: new Date().toISOString(),
+            lastSpin: null
           });
         }
       });
@@ -357,7 +361,41 @@ var Progressive = (function () {
       _pendingAdd += addition;
       _scheduleFlush();
     }
+    /* FIX: random trigger — check after contributing this spin */
+    /* Update lastSpin timestamp so operator can track active/inactive */
+    _updateLastSpin();
+    if (_shouldRandomTrigger()) return 'random';
     return _forceArmed;
+  }
+
+  function _updateLastSpin() {
+    if (!_presenceChannel) return;
+    try {
+      _presenceChannel.track({
+        gameId:   PROG_GAME_ID,
+        denom:    PROG_DENOM,
+        joinedAt: new Date().toISOString(),
+        lastSpin: new Date().toISOString()
+      });
+    } catch(e) {}
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     RANDOM TRIGGER
+     Base odds: 1-in-_triggerOdds per spin.
+     Scale: as pot rises from seed → ceiling, chance increases
+     linearly so that at cap the trigger is guaranteed (prob = 1).
+     Formula: chance = (1/_triggerOdds) + (1 - 1/_triggerOdds)
+                       * ((value - seed) / (ceiling - seed))
+     ═══════════════════════════════════════════════════════════════ */
+  function _shouldRandomTrigger() {
+    if (_justWon || _forceArmed) return false;  /* avoid double-fire */
+    var range = _ceiling - _seed;
+    if (range <= 0) return false;
+    var base    = 1 / Math.max(_triggerOdds, 1);
+    var growth  = Math.max(0, Math.min(1, (_localValue - _seed) / range));
+    var chance  = base + (1 - base) * growth;
+    return Math.random() < chance;
   }
 
   function claimForce(onResult) { _claimForceWin(onResult); }
@@ -383,8 +421,15 @@ var Progressive = (function () {
   }
 
   function mustHit()              { return _localValue >= _ceiling; }
-  function getDisplay()           { return '$' + _localValue.toFixed(2); }
+  function getDisplay()           { return _fmtMoney(_localValue); }
   function getValue()             { return _localValue; }
+
+  /* ── Currency formatter — produces $1,000.00 style ── */
+  function _fmtMoney(n) {
+    var parts = parseFloat(n).toFixed(2).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return '$' + parts[0] + '.' + parts[1];
+  }
   function isConnected()          { return _connected; }
   function getPresenceCount()     { return _presenceCount; }
   function isForceArmed()         { return _forceArmed; }
@@ -441,6 +486,7 @@ var Progressive = (function () {
     getValue:         getValue,
     isConnected:      isConnected,
     isForceArmed:     isForceArmed,
+    getTriggerOdds:   function() { return _triggerOdds; },
     getPresenceCount: getPresenceCount,
     getSessionKey:    getSessionKey,
     onChange:         onChange,
