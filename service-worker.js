@@ -1,10 +1,10 @@
 /*
  * service-worker.js — Progressive Operator
- * Gold Coins Casino System v2.4
+ * Gold Coins Casino System v2.6
  * AUTO-UPDATE: Detects new version, clears old cache, reloads all clients silently.
  * Bump CACHE_VER on every release — everything else is automatic.
  */
-var CACHE_VER = 'prog-op-v3.2';
+var CACHE_VER = 'prog-op-v3.3';
 
 /* Files to pre-cache on install */
 var CACHE_URLS = ['./index.html','./manifest.json','./progressive.js','./icons/icon-192x192.png','./icons/icon-512x512.png'];
