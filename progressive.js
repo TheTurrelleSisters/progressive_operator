@@ -40,7 +40,7 @@ function _splashError(msg) {
 function _setBadge(ok) {
   var el = document.getElementById('conn-badge');
   if (!el) return;
-  el.className = 'conn-badge ' + (ok ? 'ok' : 'err');
+  el.className = ok ? 'ok' : 'err';
   el.textContent = ok ? 'LIVE' : 'OFFLINE';
 }
 
@@ -109,7 +109,11 @@ function _setBadge(ok) {
 }());
 
 function _retryConnect() {
-  if (!_sb) return;
+  if (!_sb) {
+    _splashError('Client not initialized — reloading…');
+    setTimeout(function() { window.location.reload(); }, 3000);
+    return;
+  }
   _splashStatus('Retrying connection…');
   _sb.from('progressive').select('value,seed,armed').eq('id', 1).single()
     .then(function(r) {
@@ -120,7 +124,22 @@ function _retryConnect() {
       }
       _setBadge(true);
       _updatePotDisplay(r.data.value, r.data.seed);
+      if (r.data.armed) _setArmed(true);
       _dismissSplash();
+
+      /* Re-subscribe to live updates after reconnect */
+      _sb.channel('op-prog-' + _CHAN_SUFFIX)
+        .on('postgres_changes', {
+          event: 'UPDATE', schema: 'public', table: 'progressive', filter: 'id=eq.1'
+        }, function(p) {
+          if (p.new) {
+            _updatePotDisplay(p.new.value, p.new.seed);
+            _setArmed(!!p.new.armed);
+          }
+        })
+        .subscribe(function(status) {
+          _setBadge(status === 'SUBSCRIBED');
+        });
     })
     .catch(function() {
       _splashError('Still offline — retrying…');
@@ -212,16 +231,28 @@ window._op_trigger = function() {
   if (!_sb) return _toast('Not connected');
   var potEl = document.getElementById('pot-val');
   var amt = potEl ? parseFloat(potEl.textContent.replace('$','')) : 0;
-  if (!confirm('TRIGGER a jackpot hit of $' + amt.toFixed(2) + '?')) return;
+  if (isNaN(amt) || amt <= 0) return _toast('Invalid pot amount');
   var seed = parseFloat(document.getElementById('inp-seed').value) || 500;
+  var confirmed = window.confirm('TRIGGER a jackpot hit of $' + amt.toFixed(2) + '?');
+  if (!confirmed) return;
+
+  /* Step 1: insert hit record */
   _sb.from('progressive_hits').insert({ amount: amt, game: 'OPERATOR MANUAL', ts: new Date().toISOString() })
     .then(function(r) {
-      if (r.error) { _toast('Hit insert error: ' + r.error.message); return; }
+      if (r.error) {
+        _toast('Hit insert error: ' + r.error.message);
+        return null; /* signal failure to next .then() */
+      }
+      /* Step 2: reset pot */
       return _sb.from('progressive').update({ value: seed, armed: false }).eq('id', 1);
     })
     .then(function(r) {
+      if (r === null) return; /* insert failed, already toasted */
       if (r && r.error) _toast('Reset error: ' + r.error.message);
       else _toast('Jackpot triggered! Pot reset to $' + seed.toFixed(2));
+    })
+    .catch(function(err) {
+      _toast('Trigger error: ' + (err.message || 'unknown'));
     });
 };
 
@@ -247,7 +278,11 @@ window._op_loadHist = function() {
   list.innerHTML = '<div style="color:var(--dim);font-size:11px;text-align:center;padding:20px">Loading…</div>';
   _sb.from('progressive_hits').select('*').order('ts', { ascending: false }).limit(20)
     .then(function(r) {
-      if (r.error || !r.data || !r.data.length) {
+      if (r.error) {
+        list.innerHTML = '<div style="color:#ff4444;font-size:11px;text-align:center;padding:20px">Error loading history: ' + r.error.message + '</div>';
+        return;
+      }
+      if (!r.data || !r.data.length) {
         list.innerHTML = '<div style="color:var(--dim);font-size:11px;text-align:center;padding:20px">No hits recorded yet</div>';
         return;
       }
@@ -259,6 +294,9 @@ window._op_loadHist = function() {
           '<div class="hit-meta">' + d + '</div>' +
           '</div>';
       }).join('');
+    })
+    .catch(function(err) {
+      list.innerHTML = '<div style="color:#ff4444;font-size:11px;text-align:center;padding:20px">Error: ' + (err.message || 'unknown') + '</div>';
     });
 };
 

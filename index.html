@@ -91,19 +91,20 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 #loading-wrap { width: 180px; margin-bottom: 12px; }
 #loading-track { height: 3px; background: rgba(255,215,0,.15); border-radius: 2px; overflow: hidden; }
 #loading-bar {
-  height: 100%; width: 0%; background: linear-gradient(90deg,#ff4400,#ffd700);
+  height: 100%; width: 40%; background: linear-gradient(90deg,#ff4400,#ffd700);
   border-radius: 2px;
-  animation: load-fill 2.2s cubic-bezier(.4,0,.2,1) forwards .3s;
+  animation: load-slide 1.4s ease-in-out infinite;
   box-shadow: 0 0 8px #ffd700;
 }
-@keyframes load-fill { from{width:0%} to{width:100%} }
-#loading-text {
-  text-align: center; font-size: 8px; color: #442255;
-  letter-spacing: 2px; margin-top: 6px; text-transform: uppercase;
-  animation: blink .8s ease-in-out infinite;
-  font-family: Arial, sans-serif;
+@keyframes load-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
 }
-@keyframes blink { 0%,100%{opacity:.4} 50%{opacity:1} }
+#loading-text {
+  text-align: center; font-size: 14px; color: #ffffff;
+  letter-spacing: 1px; margin-top: 10px;
+  font-family: Arial, sans-serif; font-weight: normal;
+}
 
 #sasha-char {
   position: absolute; bottom: -10px; right: 0px;
@@ -152,9 +153,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 }
 #app-hdr-top { display: flex; justify-content: space-between; align-items: center; }
 #app-title { font-size: 11px; letter-spacing: 2px; color: var(--gold); text-transform: uppercase; }
-#conn-badge { font-size: 9px; padding: 2px 8px; border-radius: 10px; letter-spacing: 1px; }
-#conn-badge.ok { background: #003300; color: var(--green); border: 1px solid #006600; }
-#conn-badge.err { background: #330000; color: var(--danger); border: 1px solid #660000; }
+#conn-badge { font-size: 13px; padding: 4px 12px; border-radius: 10px; letter-spacing: 1px; font-weight: bold; color: #ffffff; }
+#conn-badge.ok { background: #003300; color: #ffffff; border: 1px solid #006600; }
+#conn-badge.err { background: #330000; color: #ffffff; border: 1px solid #660000; }
 
 /* ── POT DISPLAY ── */
 #pot-display {
@@ -452,7 +453,7 @@ if ("serviceWorker" in navigator) {
 
 <div id="toast"></div>
 
-<script src="progressive.js"></script>
+<script src="progressive.js?v=2.2"></script>
 <script>
 /* ── PIN Logic ── */
 var _pin = '';
