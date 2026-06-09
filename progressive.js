@@ -48,7 +48,7 @@ function _setBadge(ok) {
 (function init() {
   _splashStatus('Loading database SDK…');
   var s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.0/dist/umd/supabase.min.js?v=' + Date.now();
 
   s.onerror = function() {
     _splashError('SDK load failed — check connection');
