@@ -31,9 +31,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 /* ── LOCK SCREEN ── */
 #lock-screen {
   position: fixed; inset: 0; background: var(--bg);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 9999; gap: 16px;
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 10000; gap: 16px;
 }
+#lock-screen.show { display: flex; }
 #lock-title { font-size: 13px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
 #lock-logo  { font-size: 28px; font-weight: 900; color: var(--gold);
   text-shadow: 0 0 12px #ff6600; letter-spacing: 2px; text-align: center; line-height: 1.2; }
@@ -370,10 +371,16 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     var sp = document.getElementById('splash');
     if (!sp) return;
     sp.style.cssText += ';pointer-events:none!important;touch-action:none!important;z-index:-999!important;opacity:0;transition:opacity 0.6s';
-    setTimeout(function(){ sp.style.display='none'; }, 650);
+    setTimeout(function(){
+      sp.style.display = 'none';
+      /* Reveal PIN screen after splash finishes */
+      var ls = document.getElementById('lock-screen');
+      if (ls) ls.style.display = 'flex';
+    }, 650);
   };
-  /* Fallback: kill after 4s if app hasn't already dismissed it */
-  setTimeout(window.killSplash, 4000);
+  /* No fallback timeout — splash dismissed only after Supabase SDK loads */
+  /* Add a safety fallback in case SDK takes too long (10s) */
+  setTimeout(window.killSplash, 10000);
 }());
 </script>
 <div id="lock-screen">
@@ -468,6 +475,7 @@ var _presenceCount = 0;
 var _presenceState = {};   /* key → {gameId, joinedAt, lastSpin} */
 var _forceIsArmed  = false;
 var _inactiveTimer = null;
+var _pollTimer     = null;
 var INACTIVE_MS    = 60 * 1000;       /* 60 seconds */
 var CONN_LIMIT     = 50;              /* max connected devices */
 var _operatorUsername = 'operator';   /* set on login */
@@ -494,8 +502,7 @@ function pkEnter() {
   if (_pinBuf === OP_PIN) {
     _operatorUsername = username;
     document.getElementById('lock-screen').style.display = 'none';
-    document.getElementById('app').classList.add('visible');
-    /* Show operator name in header */
+    /* App revealed after DB connects in initSupabase callback */
     var titleEl = document.getElementById('app-title');
     if (titleEl) titleEl.textContent = '\u2605 Operator: ' + username;
     initSupabase();
@@ -513,16 +520,26 @@ function updateDots() {
 /* ══════════════════════════════════════════════════════════════════════
    SUPABASE
    ══════════════════════════════════════════════════════════════════════ */
+function _setSplashStatus(msg, color) {
+  var el = document.getElementById('loading-text');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = color || '';
+}
+
 function initSupabase() {
+  _setSplashStatus('Connecting…', '#ffaa00');
   setConnStatus('connecting');
   var s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
   s.onload = function() {
     try {
+      _setSplashStatus('SDK loaded — reaching database…', '#ffaa00');
       setConnStatus('connecting');
-      _client    = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      _client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       fetchRow(function() {
         _connected = true;
+        _setSplashStatus('Connected ✓', '#00ff88');
         document.getElementById('conn-badge').className = 'ok';
         document.getElementById('conn-badge').textContent = 'LIVE';
         setConnStatus('connected');
@@ -532,14 +549,23 @@ function initSupabase() {
         subscribePresence();
         subscribeCommands();
         startInactiveTimer();
-        /* Dismiss splash now that we're connected and data is loaded */
-        if (typeof window.killSplash === 'function') window.killSplash();
+        /* Short pause so user sees "Connected ✓" before splash clears */
+        setTimeout(function() {
+          /* Reveal app */
+          document.getElementById('app').classList.add('visible');
+          /* Dismiss splash → PIN screen appears */
+          if (typeof window.killSplash === 'function') window.killSplash();
+        }, 800);
       });
     } catch(e) {
+      _setSplashStatus('Connection failed', '#ff3300');
       setOffline();
     }
   };
-  s.onerror = setOffline;
+  s.onerror = function() {
+    _setSplashStatus('Network error — check connection', '#ff3300');
+    setOffline();
+  };
   document.head.appendChild(s);
 }
 
@@ -572,13 +598,15 @@ function setOffline() {
   document.getElementById('conn-badge').className = 'err';
   document.getElementById('conn-badge').textContent = 'OFFLINE';
   setConnStatus('reconnecting');
-  renderTab();
+  if (_client) { try { renderTab(); } catch(e) {} }
 }
 
 function fetchRow(cb) {
   _client.from('progressive').select('*').eq('id', 1).single().then(function(res) {
-    if (res.error) { console.warn('fetch error', res.error); if (cb) cb(); return; }
+    if (res.error) { console.warn('fetch error', res.error); setOffline(); return; }
     _row = res.data;
+    /* Sync armed state from DB so UI is correct on load and reconnect */
+    _forceIsArmed = !!_row.armed;
     updatePotDisplay();
     renderTab();
     if (cb) cb();
@@ -608,9 +636,16 @@ function subscribePresence() {
       var entries = state[k];
       if (entries && entries.length > 0) {
         _presenceState[k] = entries[0];
-        /* Assign a Player ID if this is a new non-operator session */
+        /* Use playerLabel from presence payload if available (set by v1.4 progressive.js) */
+        /* Otherwise fall back to local auto-increment */
         if (entries[0].gameId !== 'operator' && !_playerIdMap[k]) {
-          _playerIdMap[k] = _nextPlayerId++;
+          if (entries[0].playerLabel && entries[0].playerLabel.indexOf('Player') === 0) {
+            /* Extract number from "Player N" label */
+            var _pnum = parseInt(entries[0].playerLabel.replace('Player ', ''), 10);
+            _playerIdMap[k] = isNaN(_pnum) ? _nextPlayerId++ : _pnum;
+          } else {
+            _playerIdMap[k] = _nextPlayerId++;
+          }
         }
       }
     });
@@ -710,7 +745,9 @@ function _audit(action, detail) {
 function subscribeCommands() {
   _client.channel('op-commands')
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_commands' }, function(p) {
-      if (p.new && p.new.status === 'armed') {
+      /* Any new command row means we just armed — forceHit() already set _forceIsArmed=true locally */
+      /* This listener handles the case where another operator session arms it */
+      if (p.new && (p.new.status === 'armed' || p.new.command === 'force_jackpot')) {
         _forceIsArmed = true;
         var el = document.getElementById('armed-status');
         if (el) { el.textContent = 'ARMED'; el.style.color = '#ff4400'; }
@@ -742,20 +779,63 @@ function subscribeRealtime() {
   _channel = _client.channel('op-watch')
     .on('postgres_changes', { event:'UPDATE', schema:'public', table:'progressive', filter:'id=eq.1' }, function(p) {
       _row = p.new;
+      _forceIsArmed = !!_row.armed;
+      /* Update pot header and any visible stat cards directly — no full re-render */
       updatePotDisplay();
-      renderTab();
+      _updateDashboardCards();
     })
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_hits' }, function(p) {
       if (!p.new) return;
-      /* Prepend new hit so history stays newest-first */
       _hits.unshift(p.new);
-      /* Look up which player this session key belongs to */
-      var playerLabel = _getPlayerLabel(p.new.winner_session || p.new.session_key || null);
-      var gameLabel   = _gameName(p.new.game_id);
-      _audit('JACKPOT HIT', gameLabel + ' — ' + _fmtMoney(Number(p.new.amount||0)) + ' — ' + playerLabel);
-      renderTab();
+      var gameLabel = _gameName(p.new.game_id);
+      _audit('JACKPOT HIT', gameLabel + ' — ' + _fmtMoney(Number(p.new.amount||0)));
+      if (_activeTab === 'history' || _activeTab === 'dashboard') renderTab();
     })
-    .subscribe();
+    .subscribe(function(status) {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.warn('Realtime channel error:', status, '— falling back to poll');
+      }
+    });
+
+  /* Polling fallback: re-fetch every 5s in case realtime misses an event */
+  if (_pollTimer) clearInterval(_pollTimer);
+  _pollTimer = setInterval(function() {
+    if (!_connected) return;
+    _client.from('progressive').select('*').eq('id', 1).single().then(function(res) {
+      if (res.error || !res.data) return;
+      /* Only update if value actually changed */
+      if (res.data.value !== _row.value || res.data.hit_count !== _row.hit_count || res.data.armed !== _row.armed) {
+        _row = res.data;
+        _forceIsArmed = !!_row.armed;
+        updatePotDisplay();
+        _updateDashboardCards();
+      }
+    });
+  }, 2000);
+}
+
+/* Update just the stat cards in the dashboard without full re-render */
+function _updateDashboardCards() {
+  var potCard    = document.querySelector('#tab-content .stat-card:nth-child(1) .stat-val');
+  var ceilCard   = document.querySelector('#tab-content .stat-card:nth-child(2) .stat-val');
+  var contribCard= document.querySelector('#tab-content .stat-card:nth-child(3) .stat-val');
+  var hitsCard   = document.querySelector('#tab-content .stat-card:nth-child(4) .stat-val');
+  var armedEl    = document.getElementById('armed-status');
+  var progressBar= document.querySelector('#tab-content [style*="linear-gradient(90deg"] > div');
+
+  if (_activeTab !== 'dashboard') return; /* only update if dashboard is visible */
+
+  if (potCard)     potCard.textContent     = _fmtMoney(Number(_row.value));
+  if (ceilCard)    ceilCard.textContent    = _fmtMoney(Number(_row.ceiling));
+  if (contribCard) contribCard.textContent = ((_row.contrib_rate||0)*100).toFixed(1) + '%';
+  if (hitsCard)    hitsCard.textContent    = (_row.hit_count||0);
+  if (armedEl)     { armedEl.textContent = _forceIsArmed ? 'ARMED' : 'READY'; armedEl.style.color = _forceIsArmed ? '#ff4400' : ''; }
+
+  /* Update progress bar */
+  if (progressBar && _row.ceiling > _row.seed) {
+    var pct = Math.min(100, ((_row.value - _row.seed) / (_row.ceiling - _row.seed)) * 100);
+    progressBar.style.width = pct.toFixed(1) + '%';
+  }
 }
 
 function updatePotDisplay() {
@@ -774,6 +854,9 @@ function showTab(name) {
     var names = ['dashboard','settings','history','force','messages'];
     t.classList.toggle('active', names[i] === name);
   });
+  /* Auto-refresh data when switching to data tabs */
+  if (name === 'messages' && _client) fetchMessages();
+  if (name === 'history'  && _client) fetchHits();
   renderTab();
 }
 
@@ -800,7 +883,7 @@ function renderMessages() {
 
   return '<div class="section"><div class="sec-title">&#128226; Broadcast Message</div>' +
     '<div style="margin-bottom:10px">' +
-    '<div class="prop-row"><div class="prop-name">Type</div>' +
+    '<div class="row"><div class="row-lbl">Type</div>' +
     '<select id="msg-type" style="width:160px;background:#0d0d1a;border:1px solid #444;border-radius:4px;color:#ffd700;font-size:11px;padding:5px 8px">' +
     '<option value="general">&#128226; General</option>' +
     '<option value="jackpot">&#127922; Jackpot Alert</option>' +
@@ -887,10 +970,11 @@ function renderDashboard() {
     '</div></div>' +
     '<div class="section"><div class="sec-title">Last Hit</div>' +
     (_hits.length > 0
-      ? '<div class="hit-row"><div class="hit-game">' + (_hits[0].game_id||'—') + ' &bull; ' + _denom(_hits[0].denom) + '</div>' +
+      ? '<div class="hit-row"><div class="hit-game">' + (_hits[0].game_title||_gameName(_hits[0].game_id)) + ' &bull; ' + _denom(_hits[0].denom) + '</div>' +
         '<div class="hit-amt">' + _fmtMoney(Number(_hits[0].amount)) + '</div>' +
-        '<div class="hit-meta">' + (_hits[0].pattern||'') + ' &bull; ' + _balls(_hits[0].balls) + ' &bull; ' + _ts(_hits[0].created_at) + '</div>' +
-        '<div class="hit-meta" style="color:#aaffcc">' + _getPlayerLabel(_hits[0].winner_session || _hits[0].session_key || null) + '</div></div>'
+        '<div class="hit-meta" style="color:#ffdd88">' + (_hits[0].win_patterns||_hits[0].pattern||'') + '</div>' +
+        '<div class="hit-meta">Bet: ' + _fmtMoney(Number(_hits[0].bet||0)) + ' &bull; ' + _balls(_hits[0].balls) + ' &bull; ' + _ts(_hits[0].created_at) + '</div>' +
+        '<div class="hit-meta" style="color:#aaffcc">&#128100; ' + (_hits[0].player_label||'—') + '</div></div>'
       : '<div style="color:var(--dim);font-size:12px">No hits recorded yet.</div>') +
     '</div>' +
     '<div class="section"><div class="sec-title">Connection</div>' +
@@ -941,13 +1025,18 @@ function renderHistory() {
   } else {
     _hits.forEach(function(hit) {
       /* Try to resolve the session to a Player ID label */
-      var playerLabel = _getPlayerLabel(hit.winner_session || hit.session_key || null);
+      /* progressive_hits has no session column — show game name as identifier */
+      var playerLabel = _gameName(hit.game_id);
+      var _hitTitle   = hit.game_title || _gameName(hit.game_id);
+      var _hitPlayer  = hit.player_label || playerLabel;
+      var _hitPats    = hit.win_patterns || hit.pattern || '';
       h += '<div class="hit-row">' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
-        '<div class="hit-game">' + _gameName(hit.game_id) + ' &bull; ' + _denom(hit.denom) + ' denom</div>' +
+        '<div class="hit-game">' + _hitTitle + ' &bull; ' + _denom(hit.denom) + '</div>' +
         '<div class="hit-amt">' + _fmtMoney(Number(hit.amount)) + '</div></div>' +
-        '<div class="hit-meta">' + (hit.pattern||'') + ' &bull; ' + _balls(hit.balls) + ' &bull; Bet: ' + _fmtMoney(Number(hit.bet||0)) + '</div>' +
-        '<div class="hit-meta" style="margin-top:2px;color:#aaffcc">' + playerLabel + '</div>' +
+        '<div class="hit-meta" style="color:#ffdd88;margin-top:2px">' + _hitPats + '</div>' +
+        '<div class="hit-meta">Bet: ' + _fmtMoney(Number(hit.bet||0)) + ' &bull; ' + _balls(hit.balls) + '</div>' +
+        '<div class="hit-meta" style="margin-top:2px;color:#aaffcc">&#128100; ' + _hitPlayer + '</div>' +
         '<div class="hit-meta" style="margin-top:2px">' + _ts(hit.created_at) + '</div>' +
         '</div>';
     });
@@ -992,6 +1081,7 @@ function renderForce() {
     '</button>' +
     '<button class="btn btn-gold btn-full" style="margin-top:10px" onclick="addTestContrib()">+ ADD $50 TEST CONTRIBUTION</button>' +
     '<button class="btn btn-green btn-full" style="margin-top:10px" onclick="fetchRow();fetchHits();toast(\'Refreshed\')">REFRESH DATA</button>' +
+    '<button class="btn btn-gold btn-full" style="margin-top:10px" onclick="resetPlayerRegistry()">&#128100; RESET PLAYER IDs</button>' +
     '</div>';
 }
 
@@ -1058,15 +1148,27 @@ function forceHit() {
   });
 }
 
+function resetPlayerRegistry() {
+  if (!_connected) { toast('Not connected'); return; }
+  if (!confirm('Reset all Player IDs? Player 1 will be reassigned to the next player who spins.')) return;
+  _client.rpc('reset_player_registry').then(function(res) {
+    if (res.error) { toast('Reset failed: ' + res.error.message); return; }
+    _playerIdMap   = {};
+    _nextPlayerId  = 1;
+    _audit('PLAYER IDS RESET', 'All player labels cleared');
+    toast('&#128100; Player IDs reset — Player 1 on next spin');
+  });
+}
+
 function cancelForce() {
-  if (!_connected) return;
+  if (!_connected) { toast('Not connected'); return; }
   _client.from('progressive_commands')
     .update({ status: 'cancelled' })
     .eq('status', 'armed')
     .then(function(res) {
+      if (res.error) { toast('Cancel failed: ' + res.error.message); return; }
       _audit('FORCE JACKPOT CANCELLED', '');
       _forceIsArmed = false;
-      // Restore Force tab label
       var tabs = document.querySelectorAll('.tab');
       if (tabs[3]) { tabs[3].style.color = ''; tabs[3].textContent = 'Force'; }
       if (_activeTab === 'force') renderTab();
@@ -1084,7 +1186,9 @@ function addTestContrib() {
 
 /* ── Helpers ── */
 function _fmtMoney(n) {
-  var parts = parseFloat(n).toFixed(2).split('.');
+  var v = parseFloat(n);
+  if (isNaN(v)) return '$0.00';
+  var parts = v.toFixed(2).split('.');
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return '$' + parts[0] + '.' + parts[1];
 }
@@ -1099,7 +1203,7 @@ function _ts(ts) {
 }
 function toast(m) {
   var el = document.getElementById('toast');
-  el.textContent = m; el.classList.add('on');
+  el.innerHTML = m; el.classList.add('on');
   setTimeout(function() { el.classList.remove('on'); }, 2400);
 }
 
