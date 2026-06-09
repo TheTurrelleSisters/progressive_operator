@@ -121,3 +121,211 @@
 ---
 
 *Last updated: 2026-06-09 — Phase 2 bug fixes complete (17 bugs fixed, schema confirmed)*
+
+---
+
+## Phase 5 — Turrelle Sisters Big Munny: Bingo Conversion 📋 Planned
+
+> **Owner Decision — 2026-06-09**
+> Convert `TSBIGMUNNY` from a Class III 5-reel video slot to a Class II bingo machine.
+> All win outcomes will be determined by bingo patterns, not reel RNG.
+> Tier Bonuses (Red Spin T1–T4), Pick & Choose, and Hold & Spin are fully retired.
+> The game requires a complete redesign of math, UI, and codebase.
+
+---
+
+### 5.1 — What Gets Retired Completely
+
+| Component | Current | Decision |
+|-----------|---------|----------|
+| Red Spin Bonus (T1–T4) | Bingo-driven reel bonus sequence | ❌ Removed — replaced by bingo pattern payouts |
+| Pick & Choose | 5× Lipstick P&C trigger | ❌ Removed — no equivalent in bingo model |
+| Hold & Spin | Already removed v8.0.0 | ❌ Confirmed gone |
+| Tier jackpots (MINI/MINOR/MAJOR/GRAND via RS) | Tier-entry jackpot checks | ❌ Removed — jackpot is bingo-determined only |
+| 5-reel 3-row 20-payline evaluator | `evaluateLine()`, `PAYLINES`, `PAY_TABLE` | ❌ Retired |
+| Virtual stop table / reel strips | `VSTOP_TABLE`, `STRIPS[]` | ❌ Retired |
+| Wild multiplier system | Josie ×2, Sasha ×1, additive | ❌ Retired |
+| `bonuses.js` | RS tier logic | ❌ Retired |
+| `paytable.js` | 20-line pay table | ❌ Retired |
+| `state.js` | Slot state manager | ❌ Retire or rewrite for bingo state |
+| `ui.js` | 5-reel canvas renderer | ❌ Retire or rewrite for bingo card + reel strip |
+| Denomination system | 1¢–50¢ locked CPL | 🔄 Redesign — bingo uses flat bet per card |
+| Letter bonus (B/O/N/U/S) | Cherry-style letter evaluation | ❌ Retired — no letters in bingo model |
+
+---
+
+### 5.2 — What Carries Over
+
+| Component | Keep | Notes |
+|-----------|------|-------|
+| `progressive.js` | ✅ | v1.4 — identical to StrayPups, drop in |
+| `broadcast-init.js` | ✅ | Identical across all games |
+| Supabase integration | ✅ | Same DB, same RPCs, same presence |
+| Server ball call | ✅ | `get_or_create_ball_call` / `upsert_ball_call` RPCs already in DB |
+| Player registry | ✅ | `register_player` RPC already in DB |
+| Progressive jackpot meter UI | ✅ | Same `prog-meter` HTML structure |
+| Jackpot celebration overlay | ✅ | `force-win-cel`, `fw-video`, `fw-amt` — same videos, same dismiss flow |
+| Character assets | ✅ | Josie, Sasha, Maxine, Scott, Sisters — used in celebration + reel symbols |
+| `assets/videos/` | ✅ | `josie_dance.mp4`, `sasha_dance.mp4`, `sasha_alt.mp4` |
+| Audio assets | ✅ | `ring1.mp3`, `red_spin_music.mp3`, `credits_addup.wav`, `splash_welcome.wav` |
+| Operator PIN + username | ✅ | Same flow as StrayPups |
+| `tools/` folder | ✅ | Move to separate tools repo — not shipped in live game |
+
+---
+
+### 5.3 — New Architecture (Bingo Model)
+
+The converted game follows the exact same Class II bingo architecture as StrayPups, adapted for the Turrelle Sisters theme and symbols.
+
+**Core flow (identical to StrayPups):**
+1. Player presses SPIN → ball call fetched from DB (local fallback if offline)
+2. New bingo card generated (same `genBingoCard()` logic)
+3. First 40 balls evaluate all patterns → determine win outcomes
+4. Balls 41–75 are entertainment only (continued daubing, no new pattern eval)
+5. Cover All in balls 41–75 → penny award + new sequence
+6. Reel strip shows forced symbol combo matching the winning pattern
+7. Multiple patterns → Red Spin bonus sequence (patterns cycle as Red Spins)
+8. Progressive jackpot → Cover All in ≤25 balls → all patterns fire + pot awarded
+
+**What replaces the slot features:**
+
+| Old (slot) | New (bingo) |
+|------------|-------------|
+| 20-payline evaluator | Bingo pattern checker (`checkPatterns()`) |
+| Reel strips / virtual stops | Forced reel result per winning pattern (`REEL_SYMS`) |
+| Red Spin T1–T4 tier bonus | Red Spin = multiple bingo patterns each paying separately |
+| Pick & Choose | *(no equivalent — retired)* |
+| Wild multiplier | *(no equivalent — bingo pays are fixed per pattern)* |
+| MINI/MINOR/MAJOR/GRAND tier JPs | Single shared progressive jackpot (Cover All ≤25 balls) |
+
+---
+
+### 5.4 — Turrelle-Specific Bingo Pattern Design
+
+The Turrelle Sisters game needs its own pattern set distinct from StrayPups. Patterns should reflect the game's personality — character names, casino references, feminine themes.
+
+**Suggested pattern naming approach:**
+
+| Pattern | Cells | Name idea |
+|---------|-------|-----------|
+| Center row | [10,11,12,13,14] | Sisters Row |
+| Center column | [2,7,12,17,22] | Gold Column |
+| Main diagonal | [0,6,12,18,24] | Turrelle Cross |
+| Anti-diagonal | [4,8,12,16,20] | Sasha's Slash |
+| 4 corners | [0,4,20,24] | Diamond Corners |
+| Letter T | [0,1,2,3,4,2,7,12,17,22] | The T |
+| Letter S | various | Sasha S |
+| Cover All | all 25 | Grand Jackpot |
+
+> ⚠️ **Owner must approve final pattern set and pay table before Phase 5.2 begins.**
+
+---
+
+### 5.5 — Reel Symbol Set
+
+The Turrelle Sisters bingo game reuses the character and symbol assets already in the repo. The reel strip shows 3 symbols per spin (same 3-reel, 3-window mechanic as StrayPups).
+
+**Proposed symbol IDs:**
+
+| ID | Symbol | Asset | Notes |
+|----|--------|-------|-------|
+| 0 | Sisters | `sisters.png` | Highest — progressive jackpot symbol |
+| 1 | Josie | `josie.png` | High pay |
+| 2 | Sasha | `sasha.png` | High pay |
+| 3 | Seven | `seven.svg` (existing) | Mid pay |
+| 4 | Triple Bar | `triple_bar.svg` (existing) | Mid pay |
+| 5 | Single Bar | `single_bar.svg` (existing) | Low pay |
+| 6 | Blank | *(none)* | Empty reel slot |
+| 7 | Turrelle Progressive | *(new SVG — TBD)* | Progressive jackpot symbol |
+
+> ⚠️ **Owner to provide or approve the progressive jackpot symbol SVG before Phase 5.3 begins.**
+
+---
+
+### 5.6 — New File Structure
+
+```
+TSBIGMUNNY/
+├── index.html              ← Full rewrite
+├── css/styles.css          ← Full rewrite (bingo layout)
+├── js/
+│   ├── config.js           ← NEW: BINGO_PATTERNS, REEL_SYMS, STRIPS, pay table
+│   ├── game.js             ← NEW: bingo engine (based on StrayPups js/game.js)
+│   ├── progressive.js      ← CARRY OVER: v1.4 unchanged
+│   ├── operator.js         ← CARRY OVER or light rewrite
+│   └── broadcast-init.js   ← CARRY OVER unchanged
+├── progressive.js          ← CARRY OVER: root copy (same as js/)
+├── broadcast-init.js       ← CARRY OVER
+├── service-worker.js       ← NEW: updated file list + new cache version
+├── manifest.json           ← UPDATE: name, short_name
+└── assets/                 ← Largely carry over, remove slot-specific items
+    ├── symbols/            ← UPDATE: keep bars/7, add Turrelle progressive SVG
+    │                          REMOVE: letter_b/n/o/s/u.svg (slot-only)
+    │                          REMOVE: jp_grand/major/mini/minor.svg (slot-only)
+    │                          REMOVE: lipstick.svg, diamond.svg (slot-only)
+    ├── icons/              ← CARRY OVER
+    ├── videos/             ← CARRY OVER
+    └── audio/              ← CARRY OVER (rename to match StrayPups flat structure)
+
+RETIRED files (do not carry into new build):
+  audio.js, bonuses.js, cashout.js, paytable.js, state.js, ui.js
+  assets/cherry_DEAD.svg
+  tools/ (move to separate tools repo)
+```
+
+---
+
+### 5.7 — Phase 5 Task Checklist
+
+**Pre-work (owner decisions needed first):**
+- [ ] Owner approves final bingo pattern set and names
+- [ ] Owner approves pay table (credits per pattern per bet level)
+- [ ] Owner approves denominations (flat bet per card — e.g. $0.25/$0.50/$1.00/$5.00)
+- [ ] Owner provides or approves Turrelle progressive symbol SVG
+- [ ] Owner confirms `game_id` for Turrelle bingo game (`turrelle_bingo`?)
+
+**Phase 5.1 — Config (`js/config.js`):**
+- [ ] Define `BINGO_PATTERNS` array with Turrelle pattern set
+- [ ] Define `REEL_SYMS` combos for each pattern
+- [ ] Define `VSTOP_TABLE` and `STRIPS` for 3-reel display
+- [ ] Define `DENOM` and bet structure
+- [ ] Define `PAY` table per pattern per bet level
+
+**Phase 5.2 — Game engine (`js/game.js`):**
+- [ ] Port StrayPups `js/game.js` v5.30 as base
+- [ ] Replace StrayPups-specific references with Turrelle references
+- [ ] Replace `scott_full.png` reference with Turrelle character
+- [ ] Update `PROG_GAME_ID = 'turrelle_bingo'`
+- [ ] Update localStorage keys (`tsbm_bal`, `tsbm_cpl`)
+- [ ] Update `_gameName()` map in progressive operator controller
+
+**Phase 5.3 — HTML + CSS (`index.html`, `css/styles.css`):**
+- [ ] Full layout redesign — Turrelle Sisters theme, branding, colors
+- [ ] Bingo card + ball strip layout (same structure as StrayPups)
+- [ ] 3-reel strip (same structure as StrayPups)
+- [ ] Progressive meter, win display, pattern name display
+- [ ] Jackpot overlay (`force-win-cel`) wired to Turrelle celebration videos
+
+**Phase 5.4 — Integration + Testing:**
+- [ ] Supabase ball call working (`turrelle_bingo` game_id row in `ball_call` table)
+- [ ] Player registration working
+- [ ] Progressive contributions flowing correctly
+- [ ] Force jackpot from operator controller triggers correctly
+- [ ] All bingo patterns firing and paying correctly
+- [ ] Cover All in ≤25 balls fires progressive jackpot
+- [ ] Offline fallback working
+
+**Phase 5.5 — Operator Controller Update:**
+- [ ] Add `turrelle_bingo` to `_gameName()` map in `progressive_operator/index.html`
+- [ ] Confirm presence tracking shows Turrelle players correctly
+- [ ] Confirm hit history shows Turrelle game title and patterns
+
+**Phase 5.6 — Deploy:**
+- [ ] Bump service worker cache version
+- [ ] Add `turrelle_bingo` seed row to `ball_call` table in Supabase
+- [ ] Update Gold Coins Casino lobby with Turrelle bingo game link
+- [ ] Update `PHASE_PLAN.md` with final version number
+
+---
+
+*Last updated: 2026-06-09 — Phase 5 (Turrelle Bingo Conversion) added*
