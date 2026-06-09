@@ -307,6 +307,58 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   cursor: pointer; text-transform: uppercase;
 }
 
+/* ── LIVE BADGE DOT ── */
+#conn-badge.ok::before {
+  content: ''; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--green); margin-right: 5px;
+  vertical-align: middle; animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+
+/* ── STAT CARD POLISH ── */
+.stat-card {
+  background: linear-gradient(160deg, var(--bg2), #0e001c);
+  position: relative; overflow: hidden;
+}
+.stat-card::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold-dk), transparent);
+  opacity: .5;
+}
+
+/* ── PLAYERS LIST ── */
+.player-card {
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(160deg, var(--bg2), #0e001c);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.player-av {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 900; color: var(--bg);
+  background: linear-gradient(135deg, var(--gold), var(--gold-dk));
+}
+.player-main { flex: 1; min-width: 0; }
+.player-name { font-size: 12px; font-weight: bold; color: var(--text); }
+.player-sub  { font-size: 9px; color: var(--dim); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge {
+  font-size: 8px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 20px; flex-shrink: 0;
+}
+.badge-active { background: rgba(0,255,136,.12); color: var(--green); border: 1px solid #00ff8855; }
+.badge-idle   { background: rgba(255,100,0,.12);  color: #ff8844;     border: 1px solid #ff440055; }
+.players-summary {
+  display: flex; gap: 8px; margin-bottom: 12px;
+}
+.players-summary .stat-card { flex: 1; padding: 8px; }
+
+/* ── AUDIT SOURCE TAG ── */
+.audit-src { font-size: 8px; letter-spacing: 1px; padding: 1px 6px; border-radius: 10px; }
+.audit-src.saved { background: rgba(0,255,136,.1); color: var(--green); }
+.audit-src.local { background: rgba(136,102,153,.15); color: var(--dim); }
+
 </style>
 <script>
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("service-worker.js").catch(function(e){console.warn(e);});});}
@@ -427,11 +479,12 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
   </div>
 
   <div id="tab-bar">
-    <div class="tab active" onclick="showTab('dashboard')">Dashboard</div>
-    <div class="tab" onclick="showTab('settings')">Settings</div>
+    <div class="tab active" onclick="showTab('dashboard')">Home</div>
+    <div class="tab" onclick="showTab('players')">Players</div>
+    <div class="tab" onclick="showTab('settings')">Setup</div>
     <div class="tab" onclick="showTab('history')">History</div>
     <div class="tab" onclick="showTab('force')">Force</div>
-    <div class="tab" onclick="showTab('messages')">&#128226; MSG</div>
+    <div class="tab" onclick="showTab('messages')">&#128226;</div>
   </div>
 
   <div id="tab-content">
@@ -765,7 +818,7 @@ function updatePotDisplay() {
 function showTab(name) {
   _activeTab = name;
   document.querySelectorAll('.tab').forEach(function(t, i) {
-    var names = ['dashboard','settings','history','force','messages'];
+    var names = ['dashboard','players','settings','history','force','messages'];
     t.classList.toggle('active', names[i] === name);
   });
   renderTab();
