@@ -429,11 +429,17 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
       <div id="conn-status-msg" class="connecting">Connecting&hellip; Stand by</div>
       <div id="pot-val" style="display:none">$500.00</div>
     </div>
-    <div id="conn-count-box" style="background:rgba(0,255,136,.08);border:1px solid #00ff8855;border-radius:8px;padding:4px 10px;text-align:center;margin-bottom:6px"><div style="font-size:8px;letter-spacing:2px;color:#00ff88">CONNECTED</div><div id="conn-count" style="font-size:22px;font-weight:900;color:#00ff88;font-family:Arial Black,Arial,sans-serif">--</div><div class="cap-label" style="font-size:7px;color:#448866;letter-spacing:1px">DEVICES</div></div>
-    <div id="inactive-count-box">
-      <div style="font-size:8px;letter-spacing:2px;color:#ff8844">INACTIVE</div>
-      <div id="inactive-count" style="font-size:18px;font-weight:900;color:#ff6600;font-family:Arial Black,Arial,sans-serif">--</div>
-      <div style="font-size:7px;color:#884422;letter-spacing:1px">NO SPIN 60+ SEC</div>
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:80px">
+      <div id="conn-count-box" style="background:rgba(0,255,136,.08);border:1px solid #00ff8855;border-radius:8px;padding:6px 10px;text-align:center;flex:1">
+        <div style="font-size:8px;letter-spacing:2px;color:#00ff88">CONNECTED</div>
+        <div id="conn-count" style="font-size:22px;font-weight:900;color:#00ff88;font-family:Arial Black,Arial,sans-serif;line-height:1.2">0</div>
+        <div class="cap-label" style="font-size:7px;color:#448866;letter-spacing:1px">DEVICES</div>
+      </div>
+      <div id="inactive-count-box" style="background:rgba(255,100,0,.08);border:1px solid #ff440033;border-radius:8px;padding:6px 10px;text-align:center;flex:1">
+        <div style="font-size:8px;letter-spacing:2px;color:#ff8844">INACTIVE</div>
+        <div id="inactive-count" style="font-size:22px;font-weight:900;color:#ff6600;font-family:Arial Black,Arial,sans-serif;line-height:1.2">0</div>
+        <div style="font-size:7px;color:#884422;letter-spacing:1px">NO SPIN 60+s</div>
+      </div>
     </div>
     <div id="pot-meta">
       <div id="pot-ceiling-disp">Cap: $9,999.00</div>
@@ -703,7 +709,14 @@ function _updatePresenceCounts() {
     }
   });
 
-  /* ── Connected count display ── */
+  _presenceCount = total;
+
+  /* Re-render dashboard FIRST so DOM is fresh before we write counts */
+  if (_activeTab === 'dashboard') {
+    try { renderTab(); } catch(e) {}
+  }
+
+  /* ── Connected count display — must happen AFTER renderTab ── */
   var connEl   = document.getElementById('conn-count');
   var inactEl  = document.getElementById('inactive-count');
   var dashConn = document.getElementById('dash-conn');
@@ -712,11 +725,6 @@ function _updatePresenceCounts() {
   if (connEl)   connEl.textContent  = total;
   if (inactEl)  inactEl.textContent = inactive;
   if (dashConn) dashConn.textContent = total;
-  _presenceCount = total;
-  /* Re-render dashboard so player table stays in sync with counts */
-  if (_activeTab === 'dashboard') {
-    try { renderTab(); } catch(e) {}
-  }
 
   /* ── Cap warning: turn red when at or above limit ── */
   if (connBox) {
