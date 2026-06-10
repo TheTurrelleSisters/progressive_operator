@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v2.6</div>
+  <div id="splash-ver">v2.7</div>
 </div>
 
 
@@ -549,6 +549,7 @@ function initSupabase() {
     try {
       _setSplashStatus('Connecting to database…', '#ffaa00');
       _client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      window._wabcSupabaseClient = _client; /* v1.7 — shared client for wabc.js */
       fetchRow(function() {
         _connected = true;
         _setSplashStatus('Connected ✓', '#00ff88');
@@ -1539,6 +1540,6 @@ renderTab();
 <div style="position:fixed;bottom:2px;left:0;right:0;text-align:center;
 font-size:7px;color:rgba(255,215,0,0.18);letter-spacing:2px;pointer-events:none;
 z-index:1;font-family:Arial,sans-serif;font-weight:normal">
-GOLD COINS CASINO &bull; v2.6</div>
+GOLD COINS CASINO &bull; v2.7</div>
 </body>
 </html>
