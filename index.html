@@ -505,10 +505,10 @@ function pkEnter() {
   if (_pinBuf === OP_PIN) {
     _operatorUsername = username;
     document.getElementById('lock-screen').style.display = 'none';
-    /* App revealed after DB connects in initSupabase callback */
     var titleEl = document.getElementById('app-title');
     if (titleEl) titleEl.textContent = '\u2605 Operator: ' + username;
-    initSupabase();
+    /* DB is already connected during splash — just reveal the app */
+    document.getElementById('app').classList.add('visible');
   } else {
     document.getElementById('pin-error').textContent = 'Incorrect PIN';
     _pinBuf = ''; updateDots();
@@ -531,14 +531,13 @@ function _setSplashStatus(msg, color) {
 }
 
 function initSupabase() {
-  _setSplashStatus('Connecting…', '#ffaa00');
-  setConnStatus('connecting');
+  _setSplashStatus('Loading database SDK…', '#ffaa00');
   var s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+  /* Pinned version — matches progressive.js */
+  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.0/dist/umd/supabase.min.js';
   s.onload = function() {
     try {
-      _setSplashStatus('SDK loaded — reaching database…', '#ffaa00');
-      setConnStatus('connecting');
+      _setSplashStatus('Connecting to database…', '#ffaa00');
       _client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       fetchRow(function() {
         _connected = true;
@@ -552,25 +551,25 @@ function initSupabase() {
         subscribePresence();
         subscribeCommands();
         startInactiveTimer();
-        /* Short pause so user sees "Connected ✓" before splash clears */
+        /* Short pause so user sees "Connected ✓" then splash dismisses to PIN */
         setTimeout(function() {
-          /* Reveal app */
-          document.getElementById('app').classList.add('visible');
-          /* Dismiss splash → PIN screen appears */
           if (typeof window.killSplash === 'function') window.killSplash();
         }, 800);
       });
     } catch(e) {
-      _setSplashStatus('Connection failed', '#ff3300');
-      setOffline();
+      _setSplashStatus('Init error: ' + e.message, '#ff3300');
+      setTimeout(initSupabase, 5000);
     }
   };
   s.onerror = function() {
-    _setSplashStatus('Network error — check connection', '#ff3300');
-    setOffline();
+    _setSplashStatus('SDK load failed — retrying…', '#ff3300');
+    setTimeout(initSupabase, 5000);
   };
   document.head.appendChild(s);
 }
+
+/* ── Connect during splash on page load ── */
+initSupabase();
 
 function setConnStatus(state) {
   var el = document.getElementById('conn-status-msg');
@@ -606,9 +605,13 @@ function setOffline() {
 
 function fetchRow(cb) {
   _client.from('progressive').select('*').eq('id', 1).single().then(function(res) {
-    if (res.error) { console.warn('fetch error', res.error); setOffline(); return; }
+    if (res.error) {
+      console.warn('fetch error', res.error);
+      _setSplashStatus('DB error: ' + res.error.message + ' — retrying…', '#ff6600');
+      setTimeout(function() { fetchRow(cb); }, 5000);
+      return;
+    }
     _row = res.data;
-    /* Sync armed state from DB so UI is correct on load and reconnect */
     _forceIsArmed = !!_row.armed;
     updatePotDisplay();
     renderTab();
