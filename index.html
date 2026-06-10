@@ -509,6 +509,10 @@ function pkEnter() {
     if (titleEl) titleEl.textContent = '\u2605 Operator: ' + username;
     /* DB is already connected during splash — just reveal the app */
     document.getElementById('app').classList.add('visible');
+    /* Force immediate re-render so presence counts show on first view */
+    _activeTab = 'dashboard';
+    renderTab();
+    _updatePresenceCounts();
   } else {
     document.getElementById('pin-error').textContent = 'Incorrect PIN';
     _pinBuf = ''; updateDots();
@@ -658,7 +662,8 @@ function subscribePresence() {
       }
     });
     _updatePresenceCounts();
-    if (_activeTab === 'dashboard') renderTab();
+    /* Always re-render active tab — presence changes affect dashboard + settings */
+    try { renderTab(); } catch(e) {}
   }
 
   presenceCh
@@ -708,6 +713,10 @@ function _updatePresenceCounts() {
   if (inactEl)  inactEl.textContent = inactive;
   if (dashConn) dashConn.textContent = total;
   _presenceCount = total;
+  /* Re-render dashboard so player table stays in sync with counts */
+  if (_activeTab === 'dashboard') {
+    try { renderTab(); } catch(e) {}
+  }
 
   /* ── Cap warning: turn red when at or above limit ── */
   if (connBox) {
@@ -724,7 +733,7 @@ function _updatePresenceCounts() {
 /* Poll every 10s to keep inactive count fresh against the 60-second threshold */
 function startInactiveTimer() {
   if (_inactiveTimer) clearInterval(_inactiveTimer);
-  _inactiveTimer = setInterval(_updatePresenceCounts, 10000);
+  _inactiveTimer = setInterval(_updatePresenceCounts, 3000); /* 3s — real-time presence updates */
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -758,8 +767,18 @@ function _audit(action, detail) {
 function subscribeCommands() {
   _client.channel('op-commands')
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_commands' }, function(p) {
-      /* Any new command row means we just armed — forceHit() already set _forceIsArmed=true locally */
-      /* This listener handles the case where another operator session arms it */
+      /* Handle WABC system command confirmations */
+      if (p.new && p.new.command === 'force_local_ball') {
+        _forceLocalMode[p.new.winner_game] = true;
+        if (_activeTab === 'settings') renderTab();
+        return;
+      }
+      if (p.new && p.new.command === 'restore_wide_ball') {
+        _forceLocalMode[p.new.winner_game] = false;
+        if (_activeTab === 'settings') renderTab();
+        return;
+      }
+      /* Force jackpot armed from another operator session */
       if (p.new && (p.new.status === 'armed' || p.new.command === 'force_jackpot')) {
         _forceIsArmed = true;
         var el = document.getElementById('armed-status');
@@ -1207,9 +1226,10 @@ function forceLocalBall(gameId) {
   var gameName = _gameName(gameId);
   if (!confirm('Force ALL players on ' + gameName + ' to LOCAL ball call?\n\nPlayers will switch instantly and see "Local ball call active".\nWide area jackpot will also be unavailable until restored.')) return;
   /* Send broadcast command to switch all clients on this game to local mode */
-  _client.from('broadcast_messages').insert({
-    message:    'FORCE_LOCAL_BALL:' + gameId,
-    type:       'force_local_ball',
+  _client.from('progressive_commands').insert({
+    command:    'force_local_ball',
+    status:     'pending',
+    winner_game: gameId,
     created_by: _operatorUsername || 'operator'
   }).then(function(res) {
     if (res.error) { toast('Error: ' + res.error.message); return; }
@@ -1226,9 +1246,10 @@ function restoreWideBall(gameId) {
   /* Issue fresh wide area sequence then broadcast restore command */
   _client.rpc('upsert_ball_call', { p_game_id: gameId }).then(function(res) {
     if (res.error) { toast('Error issuing sequence: ' + res.error.message); return; }
-    _client.from('broadcast_messages').insert({
-      message:    'RESTORE_WIDE_BALL:' + gameId,
-      type:       'restore_wide_ball',
+    _client.from('progressive_commands').insert({
+      command:    'restore_wide_ball',
+      status:     'pending',
+      winner_game: gameId,
       created_by: _operatorUsername || 'operator'
     }).then(function(res2) {
       if (res2.error) { toast('Error: ' + res2.error.message); return; }
