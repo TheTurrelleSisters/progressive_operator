@@ -62,6 +62,38 @@ function _getClient() {
    OPERATOR ACTIONS
    ══════════════════════════════════════════════════════════════════ */
 
+/* ── Resolve a player label from the presence/ID maps built by index.html ── */
+function _resolvePlayerLabel(sessionKey) {
+  if (!sessionKey) return '—';
+  /* _getPlayerLabel and _presenceState/_playerIdMap are defined in index.html */
+  if (typeof _getPlayerLabel === 'function') return _getPlayerLabel(sessionKey);
+  if (typeof _playerIdMap !== 'undefined' && _playerIdMap[sessionKey]) {
+    return 'Player ' + _playerIdMap[sessionKey];
+  }
+  return sessionKey.substr(0, 8);
+}
+
+/* ── Find the active armed terminal session from presence state ──
+   Returns { session, game_id, game_title, denom } or null if no
+   active armed terminal can be identified.                        ── */
+function _resolveWinnerSession() {
+  if (typeof _presenceState === 'undefined') return null;
+  var keys = Object.keys(_presenceState);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var p = _presenceState[k];
+    if (!p || p.gameId === 'operator') continue;
+    /* Prefer the most-recently-spun terminal */
+    return {
+      session:    k,
+      game_id:    p.gameId   || 'unknown',
+      game_title: p.gameId   || 'Unknown Terminal',
+      denom:      p.denom    || null
+    };
+  }
+  return null;
+}
+
 window._op_saveSeed = function() {
   var sb = _getClient(); if (!sb) return;
   var val = parseFloat(document.getElementById('inp-seed').value);
@@ -112,10 +144,23 @@ window._op_trigger = function() {
   var seed  = parseFloat(document.getElementById('inp-seed').value) || 500;
   if (!confirm('TRIGGER a jackpot hit of $' + amt.toFixed(2) + '?')) return;
 
-  /* Step 1: insert hit record — column names match progressive_hits schema */
+  /* Step 1: insert hit record — all columns from progressive_hits schema.
+     player_session / player_label pulled from whichever terminal is currently
+     in the armed command (winner_session), or left as OPERATOR MANUAL if none. */
+  var armedWinner = (typeof _presenceState !== 'undefined')
+    ? _resolveWinnerSession() : null;
+
   sb.from('progressive_hits').insert({
-    game_title: 'OPERATOR MANUAL',
-    amount:     amt
+    game_id:        armedWinner ? armedWinner.game_id   : 'operator',
+    game_title:     armedWinner ? armedWinner.game_title : 'OPERATOR MANUAL',
+    denom:          armedWinner ? armedWinner.denom      : null,
+    amount:         amt,
+    pattern:        'Operator Manual Trigger',
+    balls:          0,
+    bet:            0,
+    player_session: armedWinner ? armedWinner.session   : null,
+    player_label:   armedWinner ? _resolvePlayerLabel(armedWinner.session) : 'Operator',
+    win_patterns:   'Operator Manual Trigger'
   })
   .then(function(r) {
     if (r.error) {
@@ -167,11 +212,14 @@ window._op_loadHist = function() {
         return;
       }
       list.innerHTML = r.data.map(function(h) {
-        var d = h.created_at ? new Date(h.created_at).toLocaleString() : '—';
+        var d      = h.created_at ? new Date(h.created_at).toLocaleString() : '—';
+        var player = h.player_label || (h.player_session ? _resolvePlayerLabel(h.player_session) : '—');
+        var game   = h.game_title || h.game_id || 'Unknown';
         return '<div class="hit-row">' +
-          '<div class="hit-game">'  + (h.game_title || 'Unknown') + '</div>' +
-          '<div class="hit-amt">$'  + Number(h.amount || 0).toFixed(2) + '</div>' +
-          '<div class="hit-meta">'  + d + '</div>' +
+          '<div class="hit-game">'   + game   + '</div>' +
+          '<div class="hit-player">' + player + '</div>' +
+          '<div class="hit-amt">$'   + Number(h.amount || 0).toFixed(2) + '</div>' +
+          '<div class="hit-meta">'   + d      + '</div>' +
           '</div>';
       }).join('');
     })
