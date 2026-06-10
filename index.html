@@ -545,6 +545,8 @@ function initSupabase() {
         document.getElementById('conn-badge').className = 'ok';
         document.getElementById('conn-badge').textContent = 'LIVE';
         setConnStatus('connected');
+        /* Re-render so the Connection row in the dashboard shows LIVE not OFFLINE */
+        if (_activeTab === 'dashboard') renderTab();
         fetchHits();
         fetchMessages();
         subscribeRealtime();
