@@ -1070,7 +1070,8 @@ function renderSettings() {
 }
 
 /* ── Wide Area Ball Caller ── */
-var _ballCallState = {};   /* game_id -> { sequence:[], ball_pos:0, issued_at:'' } */
+var _ballCallState  = {};   /* game_id -> { sequence:[], ball_pos:0, issued_at:'' } */
+var _forceLocalMode = {};  /* game_id -> true when operator forced all to local */
 var _ballCallerLoading = false;
 
 function renderBallCaller() {
@@ -1086,12 +1087,22 @@ function renderBallCaller() {
     var seqPrev = seq ? seq.slice(0, pos).join(', ') || '\u2014' : '\u2014';
     var nextBall = seq && pos < seq.length ? seq[pos] : '\u2014';
     var remaining = seq ? (seq.length - pos) : '\u2014';
+    var _isForced = !!_forceLocalMode[gid];
+    var _playerCount = Object.keys(_presenceState).filter(function(k){
+      return _presenceState[k] && _presenceState[k].gameId === gid;
+    }).length;
 
     rows +=
       '<div style="background:#0d0d20;border:1px solid #2a2a4a;border-radius:8px;padding:10px;margin-bottom:10px">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
-          '<div style="font-size:12px;font-weight:bold;color:var(--gold)">' + (GAME_LABELS[gid]||gid) + '</div>' +
-          '<div style="font-size:9px;color:var(--dim)">Issued: ' + issued + '</div>' +
+          '<div style="font-size:12px;font-weight:bold;color:' + (_isForced?'#ff8800':'var(--gold)') + '">' +
+            (GAME_LABELS[gid]||gid) +
+            (_isForced ? ' <span style="font-size:9px;letter-spacing:1px"> &#9888; LOCAL</span>' : '') +
+          '</div>' +
+          '<div style="font-size:9px;color:var(--dim);text-align:right">' +
+            '<span style="color:#00ff88">&#128100; ' + _playerCount + '</span>&nbsp;&nbsp;' +
+            'Issued: ' + issued +
+          '</div>' +
         '</div>' +
         '<div style="display:flex;gap:8px;margin-bottom:8px">' +
           '<div style="flex:1;text-align:center;background:#1a1a30;border-radius:6px;padding:6px">' +
@@ -1117,6 +1128,14 @@ function renderBallCaller() {
             'onclick="issueNewBallCall(\'' + gid + '\')">&#9654; NEW CALL</button>' +
           '<button class="btn" style="flex:1;padding:7px;font-size:10px;background:#1a1a30;border:1px solid #444;color:#ccc" ' +
             'onclick="resetBallPos(\'' + gid + '\')">&#8635; RESET POS</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;margin-top:6px">' +
+          (!_isForced
+            ? '<button class="btn" style="flex:1;padding:7px;font-size:10px;background:#2a1000;border:1px solid #ff8800;color:#ff8800" ' +
+                'onclick="forceLocalBall(\'' + gid + '\')">&#9888; FORCE ALL LOCAL</button>'
+            : '<button class="btn btn-green" style="flex:1;padding:7px;font-size:10px" ' +
+                'onclick="restoreWideBall(\'' + gid + '\')">&#9654; RESTORE WIDE AREA</button>'
+          ) +
         '</div>' +
       '</div>';
   });
@@ -1181,6 +1200,45 @@ function resetBallPos(gameId) {
       toast('Ball position reset for ' + _gameName(gameId));
     })
     .catch(function(err) { toast('Error: ' + (err.message || 'unknown')); });
+}
+
+function forceLocalBall(gameId) {
+  if (!_client || !_connected) { toast('Not connected'); return; }
+  var gameName = _gameName(gameId);
+  if (!confirm('Force ALL players on ' + gameName + ' to LOCAL ball call?\n\nPlayers will switch instantly and see "Local ball call active".\nWide area jackpot will also be unavailable until restored.')) return;
+  /* Send broadcast command to switch all clients on this game to local mode */
+  _client.from('broadcast_messages').insert({
+    message:    'FORCE_LOCAL_BALL:' + gameId,
+    type:       'force_local_ball',
+    created_by: _operatorUsername || 'operator'
+  }).then(function(res) {
+    if (res.error) { toast('Error: ' + res.error.message); return; }
+    _forceLocalMode[gameId] = true;
+    _audit('FORCE LOCAL BALL', gameName + ' — all players switched to local ball call');
+    if (_activeTab === 'settings') renderTab();
+    toast('⚠ ' + gameName + ' — all players now on local ball call');
+  });
+}
+
+function restoreWideBall(gameId) {
+  if (!_client || !_connected) { toast('Not connected'); return; }
+  var gameName = _gameName(gameId);
+  /* Issue fresh wide area sequence then broadcast restore command */
+  _client.rpc('upsert_ball_call', { p_game_id: gameId }).then(function(res) {
+    if (res.error) { toast('Error issuing sequence: ' + res.error.message); return; }
+    _client.from('broadcast_messages').insert({
+      message:    'RESTORE_WIDE_BALL:' + gameId,
+      type:       'restore_wide_ball',
+      created_by: _operatorUsername || 'operator'
+    }).then(function(res2) {
+      if (res2.error) { toast('Error: ' + res2.error.message); return; }
+      _forceLocalMode[gameId] = false;
+      if (_ballCallState[gameId]) { _ballCallState[gameId].ball_pos = 0; _ballCallState[gameId].issued_at = new Date().toISOString(); }
+      _audit('RESTORE WIDE BALL', gameName + ' — fresh wide area sequence issued, players switching back');
+      if (_activeTab === 'settings') renderTab();
+      toast('✔ ' + gameName + ' — wide area ball call restored for all players');
+    });
+  });
 }
 
 
