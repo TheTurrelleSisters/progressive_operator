@@ -868,8 +868,9 @@ function showTab(name) {
     t.classList.toggle('active', names[i] === name);
   });
   /* Auto-refresh data when switching to data tabs */
-  if (name === 'messages' && _client) fetchMessages();
-  if (name === 'history'  && _client) fetchHits();
+  if (name === 'messages'  && _client) fetchMessages();
+  if (name === 'history'   && _client) fetchHits();
+  if (name === 'settings'  && _client) loadBallCallState();
   renderTab();
 }
 
@@ -1061,10 +1062,125 @@ function renderSettings() {
     '<input class="inp" id="inp-trigger" type="number" min="10" max="100000" step="10" value="' + Math.round((_row.trigger_odds)||500) + '"></div>' +
     '<button class="btn btn-gold btn-full" onclick="saveSettings()">SAVE SETTINGS</button>' +
     '</div>' +
+    renderBallCaller() +
     '<div class="section"><div class="sec-title">Danger Zone</div>' +
     '<button class="btn btn-danger btn-full" onclick="resetToSeed()">RESET POT TO SEED</button>' +
     '<button class="btn btn-danger btn-full" style="margin-top:8px" onclick="setCustomValue()">SET POT TO CUSTOM VALUE</button>' +
     '</div>';
+}
+
+/* ── Wide Area Ball Caller ── */
+var _ballCallState = {};   /* game_id -> { sequence:[], ball_pos:0, issued_at:'' } */
+var _ballCallerLoading = false;
+
+function renderBallCaller() {
+  var GAME_IDS = ['straypups_1d', 'straypups_5d', 'turrelle'];
+  var GAME_LABELS = { straypups_1d: 'StrayPups $1', straypups_5d: 'StrayPups $5', turrelle: 'Turrelle Sisters' };
+
+  var rows = '';
+  GAME_IDS.forEach(function(gid) {
+    var s       = _ballCallState[gid];
+    var seq     = s && s.sequence ? s.sequence : null;
+    var pos     = s ? (s.ball_pos || 0) : 0;
+    var issued  = s && s.issued_at ? new Date(s.issued_at).toLocaleTimeString() : '\u2014';
+    var seqPrev = seq ? seq.slice(0, pos).join(', ') || '\u2014' : '\u2014';
+    var nextBall = seq && pos < seq.length ? seq[pos] : '\u2014';
+    var remaining = seq ? (seq.length - pos) : '\u2014';
+
+    rows +=
+      '<div style="background:#0d0d20;border:1px solid #2a2a4a;border-radius:8px;padding:10px;margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+          '<div style="font-size:12px;font-weight:bold;color:var(--gold)">' + (GAME_LABELS[gid]||gid) + '</div>' +
+          '<div style="font-size:9px;color:var(--dim)">Issued: ' + issued + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+          '<div style="flex:1;text-align:center;background:#1a1a30;border-radius:6px;padding:6px">' +
+            '<div style="font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:2px">NEXT BALL</div>' +
+            '<div style="font-size:22px;font-weight:900;color:#00ff88;font-family:Arial Black,Arial,sans-serif">' + nextBall + '</div>' +
+          '</div>' +
+          '<div style="flex:1;text-align:center;background:#1a1a30;border-radius:6px;padding:6px">' +
+            '<div style="font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:2px">BALL POS</div>' +
+            '<div style="font-size:22px;font-weight:900;color:var(--gold);font-family:Arial Black,Arial,sans-serif">' + pos + ' / 75</div>' +
+          '</div>' +
+          '<div style="flex:1;text-align:center;background:#1a1a30;border-radius:6px;padding:6px">' +
+            '<div style="font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:2px">REMAINING</div>' +
+            '<div style="font-size:22px;font-weight:900;color:#ffd700;font-family:Arial Black,Arial,sans-serif">' + remaining + '</div>' +
+          '</div>' +
+        '</div>' +
+        (seq
+          ? '<div style="font-size:9px;color:var(--dim);margin-bottom:8px;line-height:1.6;word-break:break-all">' +
+              '<span style="color:#aaffcc">Called: </span>' + seqPrev +
+            '</div>'
+          : '<div style="font-size:10px;color:var(--dim);margin-bottom:8px">No sequence loaded</div>') +
+        '<div style="display:flex;gap:6px">' +
+          '<button class="btn btn-green" style="flex:1;padding:7px;font-size:10px" ' +
+            'onclick="issueNewBallCall(\'' + gid + '\')">&#9654; NEW CALL</button>' +
+          '<button class="btn" style="flex:1;padding:7px;font-size:10px;background:#1a1a30;border:1px solid #444;color:#ccc" ' +
+            'onclick="resetBallPos(\'' + gid + '\')">&#8635; RESET POS</button>' +
+        '</div>' +
+      '</div>';
+  });
+
+  return '<div class="section">' +
+    '<div class="sec-title">&#127922; Wide Area Ball Caller</div>' +
+    '<div style="font-size:10px;color:var(--dim);margin-bottom:10px;line-height:1.5">' +
+      'Server issues one shared ball sequence per game. All devices on that game draw balls in the same order. ' +
+      'Issue a new call to shuffle a fresh sequence. Reset Pos moves all players back to ball 1.' +
+    '</div>' +
+    '<button class="btn btn-gold" style="width:100%;padding:7px;font-size:10px;margin-bottom:12px" ' +
+      'onclick="loadBallCallState()">&#8635; REFRESH STATUS</button>' +
+    '<div id="ball-caller-rows">' + rows + '</div>' +
+  '</div>';
+}
+
+function loadBallCallState() {
+  if (!_client || !_connected) { toast('Not connected'); return; }
+  _client.from('ball_call').select('game_id,sequence,ball_pos,issued_at')
+    .then(function(res) {
+      if (res.error) { toast('Ball call error: ' + res.error.message); return; }
+      _ballCallState = {};
+      (res.data || []).forEach(function(row) {
+        _ballCallState[row.game_id] = {
+          sequence:  row.sequence  || [],
+          ball_pos:  row.ball_pos  || 0,
+          issued_at: row.issued_at || ''
+        };
+      });
+      if (_activeTab === 'settings') renderTab();
+      toast('Ball call status refreshed');
+    });
+}
+
+function issueNewBallCall(gameId) {
+  if (!_client || !_connected) { toast('Not connected'); return; }
+  if (!confirm('Issue a NEW ball sequence for ' + _gameName(gameId) + '?\nThis resets all players on that game to ball 1.')) return;
+  _client.rpc('upsert_ball_call', { p_game_id: gameId })
+    .then(function(res) {
+      if (res.error) { toast('Error: ' + res.error.message); return; }
+      _ballCallState[gameId] = {
+        sequence:  res.data || [],
+        ball_pos:  0,
+        issued_at: new Date().toISOString()
+      };
+      _audit('NEW BALL CALL', _gameName(gameId) + ' — fresh 75-ball sequence issued');
+      if (_activeTab === 'settings') renderTab();
+      toast('New ball call issued for ' + _gameName(gameId));
+    })
+    .catch(function(err) { toast('Error: ' + (err.message || 'unknown')); });
+}
+
+function resetBallPos(gameId) {
+  if (!_client || !_connected) { toast('Not connected'); return; }
+  if (!confirm('Reset ball position to 0 for ' + _gameName(gameId) + '?\nAll players will restart from ball 1 on the existing sequence.')) return;
+  _client.rpc('update_ball_pos', { p_game_id: gameId, p_pos: 0 })
+    .then(function(res) {
+      if (res.error) { toast('Error: ' + res.error.message); return; }
+      if (_ballCallState[gameId]) _ballCallState[gameId].ball_pos = 0;
+      _audit('RESET BALL POS', _gameName(gameId) + ' — ball position reset to 0');
+      if (_activeTab === 'settings') renderTab();
+      toast('Ball position reset for ' + _gameName(gameId));
+    })
+    .catch(function(err) { toast('Error: ' + (err.message || 'unknown')); });
 }
 
 
