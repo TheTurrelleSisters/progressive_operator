@@ -320,6 +320,342 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
 
 <!-- ── LOCK SCREEN ── -->
 
+<script>
+(function(){
+  var done = false;
+  window.killSplash = function killSplash() {
+    if (done) return; done = true;
+    var sp = document.getElementById('splash');
+    if (!sp) return;
+    sp.style.transition = 'opacity 0.8s ease';
+    sp.style.opacity = '0';
+    setTimeout(function() {
+      if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
+      var ls = document.getElementById('lock-screen');
+      if (ls) ls.style.display = 'flex';
+    }, 850);
+  }DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0010">
+<meta name="apple-mobile-web-app-title" content="Prog Operator">
+<link rel="manifest" href="manifest.json">
+<title>Progressive Operator</title>
+<style>
+:root {
+  --gold:    #ffd700;
+  --gold-dk: #b8860b;
+  --red:     #ff3300;
+  --red-dk:  #8b1a00;
+  --green:   #00ff88;
+  --bg:      #0a0010;
+  --bg2:     #140025;
+  --bg3:     #1e003a;
+  --border:  #3a006a;
+  --text:    #e8d8ff;
+  --dim:     #886699;
+  --danger:  #ff2244;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Arial', sans-serif; overflow: hidden; }
+
+/* ── LOCK SCREEN ── */
+#lock-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 10000; gap: 16px;
+}
+#lock-screen.show { display: flex; }
+#lock-title { font-size: 13px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
+#lock-logo  { font-size: 28px; font-weight: 900; color: var(--gold);
+  text-shadow: 0 0 12px #ff6600; letter-spacing: 2px; text-align: center; line-height: 1.2; }
+#lock-sub   { font-size: 10px; color: var(--dim); letter-spacing: 2px; }
+#pin-dots   { display: flex; gap: 10px; margin: 8px 0; }
+.pin-dot    { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--gold-dk); background: transparent; transition: background .15s; }
+.pin-dot.filled { background: var(--gold); }
+#pin-error  { color: var(--danger); font-size: 11px; height: 14px; }
+#username-field { width: 200px; padding: 10px 12px; background: #0d0d1a; border: 1.5px solid var(--gold-dk); border-radius: 8px; color: var(--gold); font-size: 13px; text-align: center; outline: none; letter-spacing: 1px; }
+#username-field::placeholder { color: var(--dim); letter-spacing: 1px; }
+#username-field:focus { border-color: var(--gold); }
+#pin-grid   { display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; }
+.pkey {
+  height: 56px; border-radius: 10px; border: 1.5px solid var(--border);
+  background: var(--bg2); color: var(--text); font-size: 20px; font-weight: bold;
+  cursor: pointer; transition: background .1s, transform .08s;
+  display: flex; align-items: center; justify-content: center;
+}
+.pkey:active { background: var(--bg3); transform: scale(.94); }
+.pkey.wide   { grid-column: span 2; font-size: 13px; letter-spacing: 1px; color: var(--dim); }
+.pkey.enter  { background: linear-gradient(135deg,#003a00,#006600); color: var(--green); font-size: 13px; }
+
+/* ── APP ── */
+#app { display: none; flex-direction: column; height: 100%; }
+#app.visible { display: flex; }
+
+/* ── HEADER ── */
+#app-hdr {
+  background: linear-gradient(135deg, #0a0010, #1e003a);
+  border-bottom: 1.5px solid var(--gold-dk);
+  padding: 10px 14px 8px;
+  flex-shrink: 0;
+}
+#app-hdr-top { display: flex; justify-content: space-between; align-items: center; }
+#app-title { font-size: 11px; letter-spacing: 2px; color: var(--gold); text-transform: uppercase; }
+#conn-badge { font-size: 9px; padding: 2px 8px; border-radius: 10px; letter-spacing: 1px; }
+#conn-badge.ok  { background: #003300; color: var(--green); border: 1px solid #006600; }
+#conn-badge.err { background: #330000; color: var(--danger); border: 1px solid #660000; }
+#conn-status-msg { font-size: 13px; font-weight: 700; letter-spacing: 1px; color: #aaa;
+  text-align: center; padding: 4px 0 2px; min-height: 22px; transition: opacity .4s; }
+#conn-status-msg.connecting { color: #ffaa00; }
+#conn-status-msg.connected  { color: #00ff88; }
+#conn-status-msg.reconnecting { color: #ff6600; }
+#inactive-count-box { background: rgba(255,100,0,.08); border: 1px solid #ff440033;
+  border-radius: 8px; padding: 4px 10px; text-align: center; margin-top: 6px; }
+
+/* ── POT DISPLAY ── */
+#pot-display {
+  background: linear-gradient(135deg, #1a0000, #3a0010);
+  border-bottom: 1px solid #ff4400;
+  padding: 8px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+#pot-lbl { font-size: 9px; color: #ff8844; letter-spacing: 2px; text-transform: uppercase; }
+#pot-val { font-size: 26px; font-weight: 900; color: #ffdd00;
+  text-shadow: 0 0 8px #ff6600; font-family: 'Arial Black', Arial, sans-serif; }
+#pot-meta { font-size: 9px; color: var(--dim); text-align: right; }
+
+/* ── TABS ── */
+#tab-bar {
+  display: flex; border-bottom: 1.5px solid var(--border);
+  background: var(--bg2); flex-shrink: 0;
+}
+.tab {
+  flex: 1; padding: 10px 4px; text-align: center; font-size: 10px;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--dim);
+  cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s;
+}
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+/* ── CONTENT ── */
+#tab-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px; }
+
+/* ── SECTIONS ── */
+.section { margin-bottom: 18px; }
+.sec-title {
+  font-size: 9px; letter-spacing: 2px; color: var(--gold-dk);
+  text-transform: uppercase; margin-bottom: 8px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid #1e003a;
+}
+.row:last-child { border-bottom: none; }
+.row-lbl { font-size: 12px; color: var(--text); }
+.row-sub { font-size: 9px; color: var(--dim); margin-top: 2px; }
+.row-val { font-size: 14px; color: var(--gold); font-weight: bold; }
+.inp {
+  background: var(--bg3); border: 1.5px solid var(--border); border-radius: 6px;
+  color: var(--gold); font-size: 14px; padding: 6px 10px; width: 110px;
+  text-align: right; outline: none;
+}
+.inp:focus { border-color: var(--gold-dk); }
+
+/* ── BUTTONS ── */
+.btn {
+  padding: 10px 16px; border-radius: 8px; border: none; font-size: 11px;
+  font-weight: bold; letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; transition: transform .08s, opacity .1s;
+}
+.btn:active { transform: scale(.94); opacity: .85; }
+.btn-gold    { background: linear-gradient(135deg,#5a3800,#b8860b); color: var(--gold); border: 1px solid var(--gold-dk); }
+.btn-green   { background: linear-gradient(135deg,#003a00,#006600); color: var(--green); border: 1px solid #00aa44; }
+.btn-danger  { background: linear-gradient(135deg,#3a0010,#660022); color: var(--danger); border: 1px solid #aa0033; }
+.btn-full    { width: 100%; margin-top: 8px; padding: 12px; font-size: 12px; }
+
+/* ── STATS GRID ── */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px; text-align: center;
+}
+.stat-val { font-size: 20px; font-weight: 900; color: var(--gold); }
+.stat-lbl { font-size: 9px; color: var(--dim); letter-spacing: 1px; margin-top: 2px; }
+
+/* ── HISTORY ── */
+.hit-row {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.hit-amt  { font-size: 18px; font-weight: 900; color: #ffdd00; }
+.hit-meta { font-size: 10px; color: var(--dim); margin-top: 3px; }
+.hit-game { font-size: 10px; color: var(--gold); font-weight: bold; }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: #1e003a; border: 1.5px solid var(--gold-dk); border-radius: 20px;
+  padding: 8px 20px; font-size: 12px; color: var(--gold);
+  transition: transform .3s ease; z-index: 999; pointer-events: none; white-space: nowrap;
+}
+#toast.on { transform: translateX(-50%) translateY(0); }
+
+/* ── SPLASH ──────────────────────────────── */
+/* NOTE: No global html/body override here — main app styles above take precedence */
+
+#splash{
+  position:fixed;inset:0;z-index:9999;
+  background:radial-gradient(ellipse at center,#1a0030 0%,#05000f 70%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:0;
+  transition:opacity .8s ease;
+}
+#splash.fade-out{opacity:0;pointer-events:none;touch-action:none;z-index:-1;}
+
+/* Scanlines */
+#splash::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,
+    rgba(0,0,0,.12) 3px,rgba(0,0,0,.12) 4px);
+}
+
+/* Stars */
+.star{position:absolute;border-radius:50%;background:#ffd700;
+  animation:twinkle var(--d) ease-in-out infinite var(--delay);}
+@keyframes twinkle{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
+
+/* Gear */
+#gear-wrap{position:relative;margin-bottom:16px;}
+#gear-img{
+  width:110px;height:110px;
+  animation:gear-spin 8s linear infinite;
+  filter:drop-shadow(0 0 16px rgba(255,215,0,.6)) drop-shadow(0 0 32px rgba(255,150,0,.3));
+}
+@keyframes gear-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* Pulse ring */
+#gear-ring{
+  position:absolute;inset:-12px;border-radius:50%;
+  border:2px solid rgba(255,215,0,.3);
+  animation:ring-pulse 2s ease-in-out infinite;
+}
+#gear-ring2{
+  position:absolute;inset:-24px;border-radius:50%;
+  border:1px solid rgba(255,215,0,.15);
+  animation:ring-pulse 2s ease-in-out infinite .5s;
+}
+@keyframes ring-pulse{
+  0%,100%{transform:scale(1);opacity:.4}
+  50%{transform:scale(1.08);opacity:.9}
+}
+
+/* Title */
+#splash-title{
+  font-size:clamp(11px,3.5vw,16px);
+  letter-spacing:4px;color:#ff8844;
+  text-transform:uppercase;
+  text-shadow:0 0 8px #ff4400;
+  margin-bottom:4px;
+}
+#splash-name{
+  font-size:clamp(22px,7vw,32px);
+  font-weight:900;color:#ffd700;
+  text-align:center;line-height:1.15;
+  letter-spacing:2px;
+  text-shadow:0 0 12px #ff8800, 0 0 24px #ff4400;
+  margin-bottom:6px;
+}
+#splash-sub{
+  font-size:clamp(9px,2.5vw,12px);
+  letter-spacing:3px;color:#664488;
+  text-transform:uppercase;
+  margin-bottom:28px;
+}
+
+/* Loading bar */
+#loading-wrap{width:180px;margin-bottom:12px;}
+#loading-track{
+  height:3px;background:rgba(255,215,0,.15);
+  border-radius:2px;overflow:hidden;
+}
+#loading-bar{
+  height:100%;width:0%;background:linear-gradient(90deg,#ff4400,#ffd700);
+  border-radius:2px;
+  animation:load-fill 2.2s cubic-bezier(.4,0,.2,1) forwards .3s;
+  box-shadow:0 0 8px #ffd700;
+}
+@keyframes load-fill{from{width:0%}to{width:100%}}
+#loading-text{
+  text-align:center;font-size:8px;color:#442255;
+  letter-spacing:2px;margin-top:6px;text-transform:uppercase;
+  animation:blink .8s ease-in-out infinite;
+}
+@keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* Sasha */
+#sasha-char{
+  position:absolute;bottom:-10px;right:0px;
+  height:52%;width:auto;
+  opacity:.18;
+  filter:grayscale(30%);
+  pointer-events:none;
+}
+
+/* Version */
+#splash-ver{
+  position:absolute;bottom:14px;
+  font-size:9px;color:#331144;
+  letter-spacing:2px;font-family:Arial,sans-serif;font-weight:normal;
+}
+
+
+/* ── ARMED BANNER ── */
+#armed-banner {
+  display: none; margin: 10px 0;
+  background: linear-gradient(135deg, #3a0000, #660010);
+  border: 2px solid #ff4400;
+  border-radius: 10px; padding: 12px 14px;
+  animation: armed-pulse 1s ease-in-out infinite;
+}
+#armed-banner.show { display: block; }
+@keyframes armed-pulse {
+  0%,100% { border-color: #ff4400; box-shadow: 0 0 8px rgba(255,68,0,.4); }
+  50%      { border-color: #ff8800; box-shadow: 0 0 20px rgba(255,136,0,.7); }
+}
+#armed-title {
+  font-size: 14px; font-weight: 900; color: #ff4400;
+  letter-spacing: 2px; text-align: center; margin-bottom: 4px;
+}
+#armed-desc {
+  font-size: 10px; color: #cc6644; text-align: center;
+  font-family: Arial, sans-serif; font-weight: normal; line-height: 1.5;
+}
+#armed-cancel {
+  width: 100%; margin-top: 10px; padding: 8px;
+  border-radius: 7px; border: 1px solid #884400;
+  background: rgba(0,0,0,.4); color: #884400;
+  font-size: 10px; font-weight: 900; letter-spacing: 1px;
+  cursor: pointer; text-transform: uppercase;
+}
+
+</style>
+<script>
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("service-worker.js").catch(function(e){console.warn(e);});});}
+</script>
+</head>
+<body>
+
+<!-- ── LOCK SCREEN ── -->
+
 <div id="splash">
 
   <!-- Stars -->
@@ -361,31 +697,12 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v3.8</div>
+  <div id="splash-ver">v3.9</div>
 </div>
 
 
 
-<script>
-(function(){
-  var done = false;
-  window.killSplash = function killSplash() {
-    if (done) return; done = true;
-    var sp = document.getElementById('splash');
-    if (!sp) return;
-    sp.style.cssText += ';pointer-events:none!important;touch-action:none!important;z-index:-999!important;opacity:0;transition:opacity 0.6s';
-    setTimeout(function(){
-      sp.style.display = 'none';
-      /* Reveal PIN screen after splash finishes */
-      var ls = document.getElementById('lock-screen');
-      if (ls) ls.style.display = 'flex';
-    }, 650);
-  };
-  /* No fallback timeout — splash dismissed only after Supabase SDK loads */
-  /* Add a safety fallback in case SDK takes too long (10s) */
-  setTimeout(window.killSplash, 10000);
-}());
-</script>
+
 <div id="lock-screen">
   <div id="lock-title">Stray-Pup LLC</div>
   <div id="lock-logo">PROGRESSIVE<br>OPERATOR</div>
@@ -540,6 +857,27 @@ function _setSplashStatus(msg, color) {
   el.style.color = color || '';
 }
 
+function splashError(msg) {
+  var bar = document.getElementById('loading-bar');
+  if (bar) { bar.style.animation = 'none'; bar.style.width = '100%'; bar.style.background = '#ff3300'; }
+  _setSplashStatus(msg, '#ff3300');
+  var wrap = document.getElementById('loading-wrap');
+  if (wrap && !document.getElementById('splash-retry')) {
+    var btn = document.createElement('button');
+    btn.id = 'splash-retry';
+    btn.textContent = 'RETRY';
+    btn.style.cssText = 'margin-top:12px;padding:8px 28px;background:transparent;border:1.5px solid #ffd700;color:#ffd700;font-size:11px;letter-spacing:2px;border-radius:20px;cursor:pointer;display:block;';
+    btn.onclick = function() {
+      var b = document.getElementById('loading-bar');
+      if (b) { b.style.animation = ''; b.style.width = '0%'; b.style.background = ''; }
+      var r = document.getElementById('splash-retry');
+      if (r && r.parentNode) r.parentNode.removeChild(r);
+      initSupabase();
+    };
+    wrap.appendChild(btn);
+  }
+}
+
 function initSupabase() {
   _setSplashStatus('Loading database SDK…', '#ffaa00');
   var s = document.createElement('script');
@@ -569,13 +907,11 @@ function initSupabase() {
         }, 800);
       });
     } catch(e) {
-      _setSplashStatus('Init error: ' + e.message, '#ff3300');
-      setTimeout(initSupabase, 5000);
+      splashError('Init error: ' + e.message);
     }
   };
   s.onerror = function() {
-    _setSplashStatus('SDK load failed — retrying…', '#ff3300');
-    setTimeout(initSupabase, 5000);
+    splashError('SDK load failed');
   };
   document.head.appendChild(s);
 }
