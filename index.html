@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v2.7</div>
+  <div id="splash-ver">v2.8</div>
 </div>
 
 
@@ -549,7 +549,6 @@ function initSupabase() {
     try {
       _setSplashStatus('Connecting to database…', '#ffaa00');
       _client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      window._wabcSupabaseClient = _client; /* v1.7 — shared client for wabc.js */
       fetchRow(function() {
         _connected = true;
         _setSplashStatus('Connected ✓', '#00ff88');
@@ -657,7 +656,7 @@ function subscribePresence() {
         _presenceState[k] = entries[0];
         /* Use playerLabel from presence payload if available (set by v1.4 progressive.js) */
         /* Otherwise fall back to local auto-increment */
-        if (entries[0].gameId !== 'operator' && !_playerIdMap[k]) {
+        if (entries[0].gameId !== 'operator' && entries[0].gameId !== 'wabc_operator' && !_playerIdMap[k]) {
           if (entries[0].playerLabel && entries[0].playerLabel.indexOf('Player') === 0) {
             /* Extract number from "Player N" label */
             var _pnum = parseInt(entries[0].playerLabel.replace('Player ', ''), 10);
@@ -694,7 +693,7 @@ function _updatePresenceCounts() {
   Object.keys(_presenceState).forEach(function(k) {
     var p = _presenceState[k];
     if (!p) return;
-    if (p.gameId === 'operator') return;   /* skip operator's own session */
+    if (p.gameId === 'operator' || p.gameId === 'wabc_operator') return;   /* skip operator sessions */
     total++;
 
     var joinedAt = p.joinedAt ? new Date(p.joinedAt).getTime() : now;
@@ -776,17 +775,6 @@ function _audit(action, detail) {
 function subscribeCommands() {
   _client.channel('op-commands')
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'progressive_commands' }, function(p) {
-      /* Handle WABC system command confirmations */
-      if (p.new && p.new.command === 'force_local_ball') {
-        _forceLocalMode[p.new.winner_game] = true;
-        if (_activeTab === 'settings') renderTab();
-        return;
-      }
-      if (p.new && p.new.command === 'restore_wide_ball') {
-        _forceLocalMode[p.new.winner_game] = false;
-        if (_activeTab === 'settings') renderTab();
-        return;
-      }
       /* Force jackpot armed from another operator session */
       if (p.new && (p.new.status === 'armed' || p.new.command === 'force_jackpot')) {
         _forceIsArmed = true;
@@ -838,25 +826,6 @@ function subscribeRealtime() {
       }
     });
 
-  /* Realtime subscription for WABC ball_call updates (ball_pos advances every 1.3s) */
-  if (_ballCallerChannel) { try { _client.removeChannel(_ballCallerChannel); } catch(e) {} }
-  _ballCallerChannel = _client.channel('op-ball-call')
-    .on('postgres_changes', {
-      event: 'UPDATE', schema: 'public', table: 'ball_call',
-      filter: 'game_id=eq.WABC'
-    }, function(p) {
-      if (!p.new) return;
-      _ballCallState['WABC'] = {
-        sequence:  p.new.sequence  || [],
-        ball_pos:  p.new.ball_pos  || 0,
-        issued_at: p.new.issued_at || null
-      };
-      /* Re-render settings tab if active so ball grid updates live */
-      if (_activeTab === 'settings') {
-        try { renderTab(); } catch(e) {}
-      }
-    })
-    .subscribe();
 
   /* Polling fallback: re-fetch every 5s in case realtime misses an event */
   if (_pollTimer) clearInterval(_pollTimer);
@@ -918,7 +887,6 @@ function showTab(name) {
   /* Auto-refresh data when switching to data tabs */
   if (name === 'messages'  && _client) fetchMessages();
   if (name === 'history'   && _client) fetchHits();
-  if (name === 'settings'  && _client) loadBallCallState();
   renderTab();
 }
 
@@ -1110,223 +1078,10 @@ function renderSettings() {
     '<input class="inp" id="inp-trigger" type="number" min="10" max="100000" step="10" value="' + Math.round((_row.trigger_odds)||500) + '"></div>' +
     '<button class="btn btn-gold btn-full" onclick="saveSettings()">SAVE SETTINGS</button>' +
     '</div>' +
-    renderBallCaller() +
     '<div class="section"><div class="sec-title">Danger Zone</div>' +
     '<button class="btn btn-danger btn-full" onclick="resetToSeed()">RESET POT TO SEED</button>' +
     '<button class="btn btn-danger btn-full" style="margin-top:8px" onclick="setCustomValue()">SET POT TO CUSTOM VALUE</button>' +
     '</div>';
-}
-
-/* ── Wide Area Ball Caller ── */
-var _ballCallState  = {};   /* game_id -> { sequence:[], ball_pos:0, issued_at:'' } */
-var _ballCallerChannel = null; /* realtime subscription for ball_call updates */
-var _forceLocalMode = {};  /* game_id -> true when operator forced all to local */
-var _ballCallerLoading = false;
-
-function _renderBallGrid(seq, pos) {
-  /* Renders a 75-cell ball grid matching the game's visual:
-     Yellow (1-40): pre-called balls shown at spin time
-     White  (41+):  entertainment balls shown one by one
-     Dim:           not yet reached */
-  if (!seq || !seq.length) {
-    return '<div style="color:var(--dim);font-size:10px;padding:8px 0">No sequence loaded</div>';
-  }
-  var cells = '';
-  for (var i = 0; i < 75; i++) {
-    var ball = seq[i];
-    var called = i < pos;
-    var isPre  = i < 40;
-    var color  = !called ? 'rgba(255,255,255,0.12)'
-               : isPre   ? '#ffdd00'
-               :            '#ffffff';
-    var bgCol  = !called ? 'rgba(255,255,255,0.04)'
-               : isPre   ? 'rgba(255,220,0,0.15)'
-               :            'rgba(255,255,255,0.1)';
-    cells += '<div style="width:28px;height:22px;border-radius:3px;background:' + bgCol + ';' +
-             'color:' + color + ';font-size:9px;font-weight:' + (called?'700':'400') + ';' +
-             'display:inline-flex;align-items:center;justify-content:center;margin:1px">' +
-             (ball || '') + '</div>';
-  }
-  return '<div style="display:flex;flex-wrap:wrap;gap:0;margin:8px 0">' + cells + '</div>';
-}
-
-function renderBallCaller() {
-  /* All games now share a single WABC sequence */
-  var s        = _ballCallState['WABC'];
-  var seq      = s && s.sequence ? s.sequence : null;
-  var pos      = s ? (s.ball_pos || 0) : 0;
-  var issued   = s && s.issued_at ? new Date(s.issued_at).toLocaleTimeString() : '\u2014';
-  var nextBall = seq && pos < seq.length ? seq[pos] : '\u2014';
-  var remaining = seq ? (seq.length - pos) : '\u2014';
-  var _isForced = !!_forceLocalMode['WABC'];
-
-  /* Count players per game from presence */
-  var byGame = {};
-  Object.keys(_presenceState).forEach(function(k) {
-    var p = _presenceState[k];
-    if (!p || p.gameId === 'operator') return;
-    byGame[p.gameId] = (byGame[p.gameId] || 0) + 1;
-  });
-  var totalPlayers = Object.values ? Object.values(byGame).reduce(function(a,b){return a+b;},0)
-    : Object.keys(byGame).reduce(function(a,k){return a+byGame[k];},0);
-  var playerBreakdown = Object.keys(byGame).map(function(g){
-    return _gameName(g) + ': ' + byGame[g];
-  }).join(' &bull; ') || 'No players';
-
-  var wabc =
-    '<div style="background:#0d0d20;border:1px solid ' + (_isForced?'#ff8800':'#2a2a4a') + ';border-radius:8px;padding:10px">' +
-      /* Header */
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
-        '<div style="font-size:13px;font-weight:bold;color:' + (_isForced?'#ff8800':'var(--gold)') + '">' +
-          '&#127922; WABC' + (_isForced ? ' <span style="font-size:9px;color:#ff8800">&#9888; LOCAL</span>' : '') +
-        '</div>' +
-        '<div style="font-size:9px;color:var(--dim);text-align:right">' +
-          '<span style="color:#00ff88">&#128100; ' + totalPlayers + ' connected</span><br>' +
-          'Issued: ' + issued +
-        '</div>' +
-      '</div>' +
-      /* Player breakdown */
-      '<div style="font-size:9px;color:var(--dim);margin-bottom:8px">' + playerBreakdown + '</div>' +
-      /* Stats row */
-      '<div style="display:flex;gap:8px;margin-bottom:8px">' +
-        '<div style="flex:1;text-align:center;background:#1a1a30;border-radius:6px;padding:6px">' +
-          '<div style="font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:2px">NEXT BALL</div>' +
-          '<div style="font-size:26px;font-weight:900;color:#00ff88;font-family:Arial Black,Arial,sans-serif">' + nextBall + '</div>' +
-        '</div>' +
-        '<div style="flex:1;text-align:center;background:#1a1a30;border-radius:6px;padding:6px">' +
-          '<div style="font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:2px">BALL POS</div>' +
-          '<div style="font-size:22px;font-weight:900;color:var(--gold);font-family:Arial Black,Arial,sans-serif">' + pos + ' / 75</div>' +
-        '</div>' +
-        '<div style="flex:1;text-align:center;background:#1a1a30;border-radius:6px;padding:6px">' +
-          '<div style="font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:2px">REMAINING</div>' +
-          '<div style="font-size:22px;font-weight:900;color:#ffd700;font-family:Arial Black,Arial,sans-serif">' + remaining + '</div>' +
-        '</div>' +
-      '</div>' +
-      /* Live ball grid */
-      '<div style="font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:4px">' +
-        '<span style="color:#ffdd00">&#9632;</span> PRE-CALLED (1-40) &nbsp;' +
-        '<span style="color:#ffffff">&#9632;</span> ENTERTAINMENT (41-75)' +
-      '</div>' +
-      _renderBallGrid(seq, pos) +
-      /* Buttons */
-      '<div style="display:flex;gap:6px;margin-top:8px">' +
-        '<button class="btn btn-green" style="flex:1;padding:7px;font-size:10px" ' +
-          'onclick="issueNewBallCall(\'WABC\')">&#9654; NEW CALL</button>' +
-        '<button class="btn" style="flex:1;padding:7px;font-size:10px;background:#1a1a30;border:1px solid #444;color:#ccc" ' +
-          'onclick="resetBallPos(\'WABC\')">&#8635; RESET POS</button>' +
-      '</div>' +
-      '<div style="margin-top:6px">' +
-        (!_isForced
-          ? '<button class="btn" style="width:100%;padding:7px;font-size:10px;background:#2a1000;border:1px solid #ff8800;color:#ff8800" ' +
-              'onclick="forceLocalBall(\'WABC\')">&#9888; FORCE ALL PLAYERS TO LOCAL</button>'
-          : '<button class="btn btn-green" style="width:100%;padding:7px;font-size:10px" ' +
-              'onclick="restoreWideBall(\'WABC\')">&#9654; RESTORE WIDE AREA BALL CALL</button>'
-        ) +
-      '</div>' +
-    '</div>';
-
-  return '<div class="section">' +
-    '<div class="sec-title">&#127922; Wide Area Ball Caller</div>' +
-    '<div style="font-size:10px;color:var(--dim);margin-bottom:10px;line-height:1.5">' +
-      'One shared 75-ball sequence for all connected bingo games. ' +
-      'Ball position advances every 1.3s during active play. Updates live.' +
-    '</div>' +
-    '<button class="btn btn-gold" style="width:100%;padding:7px;font-size:10px;margin-bottom:12px" ' +
-      'onclick="loadBallCallState()">&#8635; REFRESH STATUS</button>' +
-    '<div id="ball-caller-rows">' + wabc + '</div>' +
-  '</div>';
-}
-
-function loadBallCallState() {
-  if (!_client || !_connected) { toast('Not connected'); return; }
-  _client.from('ball_call').select('game_id,sequence,ball_pos,issued_at')
-    .eq('game_id', 'WABC')
-    .then(function(res) {
-      if (res.error) { toast('Ball call error: ' + res.error.message); return; }
-      _ballCallState = {};
-      (res.data || []).forEach(function(row) {
-        _ballCallState[row.game_id] = {
-          sequence:  row.sequence  || [],
-          ball_pos:  row.ball_pos  || 0,
-          issued_at: row.issued_at || ''
-        };
-      });
-      if (_activeTab === 'settings') renderTab();
-      toast('Ball call status refreshed');
-    });
-}
-
-function issueNewBallCall(gameId) {
-  if (!_client || !_connected) { toast('Not connected'); return; }
-  if (!confirm('Issue a NEW ball sequence for ' + _gameName(gameId) + '?\nThis resets all players on that game to ball 1.')) return;
-  _client.rpc('upsert_ball_call', { p_game_id: gameId })
-    .then(function(res) {
-      if (res.error) { toast('Error: ' + res.error.message); return; }
-      _ballCallState[gameId] = {
-        sequence:  res.data || [],
-        ball_pos:  0,
-        issued_at: new Date().toISOString()
-      };
-      _audit('NEW BALL CALL', _gameName(gameId) + ' — fresh 75-ball sequence issued');
-      if (_activeTab === 'settings') renderTab();
-      toast('New ball call issued for ' + _gameName(gameId));
-    })
-    .catch(function(err) { toast('Error: ' + (err.message || 'unknown')); });
-}
-
-function resetBallPos(gameId) {
-  if (!_client || !_connected) { toast('Not connected'); return; }
-  if (!confirm('Reset ball position to 0 for ' + _gameName(gameId) + '?\nAll players will restart from ball 1 on the existing sequence.')) return;
-  _client.rpc('update_ball_pos', { p_game_id: gameId, p_pos: 0 })
-    .then(function(res) {
-      if (res.error) { toast('Error: ' + res.error.message); return; }
-      if (_ballCallState[gameId]) _ballCallState[gameId].ball_pos = 0;
-      _audit('RESET BALL POS', _gameName(gameId) + ' — ball position reset to 0');
-      if (_activeTab === 'settings') renderTab();
-      toast('Ball position reset for ' + _gameName(gameId));
-    })
-    .catch(function(err) { toast('Error: ' + (err.message || 'unknown')); });
-}
-
-function forceLocalBall(gameId) {
-  if (!_client || !_connected) { toast('Not connected'); return; }
-  var gameName = _gameName(gameId);
-  if (!confirm('Force ALL players on ' + gameName + ' to LOCAL ball call?\n\nPlayers will switch instantly and see "Local ball call active".\nWide area jackpot will also be unavailable until restored.')) return;
-  /* Send broadcast command to switch all clients on this game to local mode */
-  _client.from('progressive_commands').insert({
-    command:    'force_local_ball',
-    status:     'pending',
-    winner_game: gameId,
-    created_by: _operatorUsername || 'operator'
-  }).then(function(res) {
-    if (res.error) { toast('Error: ' + res.error.message); return; }
-    _forceLocalMode[gameId] = true;
-    _audit('FORCE LOCAL BALL', gameName + ' — all players switched to local ball call');
-    if (_activeTab === 'settings') renderTab();
-    toast('⚠ ' + gameName + ' — all players now on local ball call');
-  });
-}
-
-function restoreWideBall(gameId) {
-  if (!_client || !_connected) { toast('Not connected'); return; }
-  var gameName = _gameName(gameId);
-  /* Issue fresh wide area sequence then broadcast restore command */
-  _client.rpc('upsert_ball_call', { p_game_id: gameId }).then(function(res) {
-    if (res.error) { toast('Error issuing sequence: ' + res.error.message); return; }
-    _client.from('progressive_commands').insert({
-      command:    'restore_wide_ball',
-      status:     'pending',
-      winner_game: gameId,
-      created_by: _operatorUsername || 'operator'
-    }).then(function(res2) {
-      if (res2.error) { toast('Error: ' + res2.error.message); return; }
-      _forceLocalMode[gameId] = false;
-      if (_ballCallState[gameId]) { _ballCallState[gameId].ball_pos = 0; _ballCallState[gameId].issued_at = new Date().toISOString(); }
-      _audit('RESTORE WIDE BALL', gameName + ' — fresh wide area sequence issued, players switching back');
-      if (_activeTab === 'settings') renderTab();
-      toast('✔ ' + gameName + ' — wide area ball call restored for all players');
-    });
-  });
 }
 
 
@@ -1540,6 +1295,6 @@ renderTab();
 <div style="position:fixed;bottom:2px;left:0;right:0;text-align:center;
 font-size:7px;color:rgba(255,215,0,0.18);letter-spacing:2px;pointer-events:none;
 z-index:1;font-family:Arial,sans-serif;font-weight:normal">
-GOLD COINS CASINO &bull; v2.7</div>
+GOLD COINS CASINO &bull; v2.8</div>
 </body>
 </html>
