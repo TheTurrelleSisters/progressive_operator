@@ -72,3 +72,14 @@ WAP Progressive Jackpot operator controller PWA. PIN-protected. Manages the wide
 - [ ] Connected players showing correctly
 - [ ] Force jackpot end-to-end test
 - [ ] progressive_hits records writing correctly
+
+### v3.12 — CRITICAL: Legacy JWT Anon Key Fix
+- Same fix — sb_publishable_ broken for Realtime WebSocket
+- Cache bust: prog-op-v3.12
+
+### v3.13 — Bug A: Player Count Exclusion Fix
+- _syncPresence/_updatePresenceCounts/connected-list filters now also exclude
+  'wabc_operator' and 'floor_operator' (previously only excluded 'operator').
+  WABC and/or Floor Manager being open no longer inflate Progressive
+  Operator's connected-player count.
+- Cache bust: prog-op-v3.13

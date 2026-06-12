@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v3.12</div>
+  <div id="splash-ver">v3.13</div>
 </div>
 
 
@@ -678,7 +678,7 @@ function subscribePresence() {
         _presenceState[k] = entries[0];
         /* Use playerLabel from presence payload if available (set by v1.4 progressive.js) */
         /* Otherwise fall back to local auto-increment */
-        if (entries[0].gameId !== 'operator' && !_playerIdMap[k]) {
+        if (entries[0].gameId !== 'operator' && entries[0].gameId !== 'wabc_operator' && entries[0].gameId !== 'floor_operator' && !_playerIdMap[k]) {
           if (entries[0].playerLabel && entries[0].playerLabel.indexOf('Player') === 0) {
             /* Extract number from "Player N" label */
             var _pnum = parseInt(entries[0].playerLabel.replace('Player ', ''), 10);
@@ -715,7 +715,7 @@ function _updatePresenceCounts() {
   Object.keys(_presenceState).forEach(function(k) {
     var p = _presenceState[k];
     if (!p) return;
-    if (p.gameId === 'operator') return;   /* skip operator's own session */
+    if (p.gameId === 'operator' || p.gameId === 'wabc_operator' || p.gameId === 'floor_operator') return;   /* skip all operator-tool sessions */
     total++;
 
     var joinedAt = p.joinedAt ? new Date(p.joinedAt).getTime() : now;
@@ -1028,7 +1028,7 @@ function renderDashboard() {
   var INACTIVE_MS = 60000;
   var playerRows = '';
   var playerKeys = Object.keys(_presenceState).filter(function(k) {
-    return _presenceState[k].gameId !== 'operator';
+    var _gid = _presenceState[k].gameId; return _gid !== 'operator' && _gid !== 'wabc_operator' && _gid !== 'floor_operator';
   });
 
   if (playerKeys.length === 0) {
