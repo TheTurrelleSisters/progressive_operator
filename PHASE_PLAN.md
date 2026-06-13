@@ -125,3 +125,16 @@ KNOWN OPEN ISSUE (not yet investigated): both StrayPups games appear to be
 broadcasting DIFFERENT ball-call sequences again (regression) — possible
 WABC/local-vs-wide-area switching issue. To be investigated next session.
 
+
+### v3.16 — Hit Stats Cards, Hit Breakdown, Presence Retry Fix
+- New dashboard stat cards: "Since Last Hit" and "Avg Time Between Hits"
+  (computed from loaded _hits array).
+- New "Hit Breakdown" section: counts of Force Jackpot / Corporal Stripes /
+  Lazy-T (and Other) from the last 50 hits.
+- PRESENCE FIX (root cause of "Connected: 0" since early builds): same
+  one-shot-subscribe bug as the games — operator's own presence subscribe
+  never retried on CHANNEL_ERROR/TIMED_OUT/CLOSED. Now retries with
+  exponential backoff (2s->30s cap).
+- NOTE: progressive_operator/progressive.js is a STALE UNUSED FILE (not
+  referenced by index.html) — candidate for removal, pending confirmation.
+- Cache bust: prog-op-v3.16

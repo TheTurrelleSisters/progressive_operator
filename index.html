@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v3.15</div>
+  <div id="splash-ver">v3.16</div>
 </div>
 
 
@@ -687,6 +687,9 @@ function fetchHits() {
 
 function subscribePresence() {
   var sessionKey = 'operator_' + Math.random().toString(36).substr(2,9);
+  var _presenceRetryDelay = 2000;
+
+  function _doSubscribePresence() {
   var presenceCh = _client.channel('presence-lobby', {
     config: { presence: { key: sessionKey } }
   });
@@ -723,11 +726,34 @@ function subscribePresence() {
     .on('presence', { event: 'leave' }, _syncPresence)
     .subscribe(function(status) {
       if (status === 'SUBSCRIBED') {
+        _presenceRetryDelay = 2000; /* reset backoff on success */
         presenceCh.track({ gameId: 'operator', joinedAt: new Date().toISOString(), lastSpin: null });
         /* Immediately sync so the count shows 0 (not --) on first connect */
         setTimeout(_updatePresenceCounts, 500);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        /* Previously a ONE-SHOT subscribe — if the first attempt failed
+           (e.g. during Supabase free-tier Realtime tenant cold-start),
+           .track() never fired and the operator's own presence (and its
+           view of _presenceState) never populated, with no retry. */
+        console.warn('[ProgOp] presence channel ' + status + ' — reconnecting in ' + (_presenceRetryDelay/1000) + 's');
+        var _old = presenceCh;
+        var _delay = _presenceRetryDelay;
+        _presenceRetryDelay = Math.min(_presenceRetryDelay * 2, 30000);
+        setTimeout(function() {
+          try {
+            var _rm = _client.removeChannel(_old);
+            if (_rm && typeof _rm.then === 'function') {
+              _rm.then(_doSubscribePresence).catch(_doSubscribePresence);
+            } else {
+              _doSubscribePresence();
+            }
+          } catch(e) { _doSubscribePresence(); }
+        }, _delay);
       }
     });
+  }
+
+  _doSubscribePresence();
 }
 
 function _updatePresenceCounts() {
@@ -1041,6 +1067,55 @@ function renderTab() {
 }
 
 /* ── Dashboard ── */
+/* Compute time-since-last-hit, average time between hits, and a
+   breakdown of hit types (Force Jackpot / Corporal Stripes / Lazy-T /
+   Other) from the loaded _hits array (most-recent-first, up to 50). */
+function _computeHitStats() {
+  var out = { lastHitAgo: null, avgBetween: null,
+              counts: { force: 0, corporal: 0, lazyT: 0, other: 0 } };
+  if (!_hits || _hits.length === 0) return out;
+
+  var now = Date.now();
+  out.lastHitAgo = now - new Date(_hits[0].created_at).getTime();
+
+  if (_hits.length > 1) {
+    var totalGap = 0, gaps = 0;
+    for (var i = 0; i < _hits.length - 1; i++) {
+      var t1 = new Date(_hits[i].created_at).getTime();
+      var t2 = new Date(_hits[i+1].created_at).getTime();
+      totalGap += (t1 - t2); gaps++;
+    }
+    if (gaps > 0) out.avgBetween = totalGap / gaps;
+  }
+
+  _hits.forEach(function(h) {
+    var pat = h.pattern || '';
+    var wp  = h.win_patterns || '';
+    if (pat === 'Force Jackpot') out.counts.force++;
+    else if (wp.indexOf('Corporal Stripes') !== -1) out.counts.corporal++;
+    else if (wp.indexOf('Lazy-T') !== -1 || pat === 'Lazy-T') out.counts.lazyT++;
+    else out.counts.other++;
+  });
+
+  return out;
+}
+
+/* Format a millisecond duration as a short human string (e.g. "3h 12m",
+   "45m", "8s"). */
+function _fmtDuration(ms) {
+  if (ms == null) return '\u2014';
+  var s = Math.floor(ms / 1000);
+  if (s < 60) return s + 's';
+  var m = Math.floor(s / 60);
+  if (m < 60) return m + 'm';
+  var h = Math.floor(m / 60);
+  m = m % 60;
+  if (h < 24) return h + 'h ' + m + 'm';
+  var d = Math.floor(h / 24);
+  h = h % 24;
+  return d + 'd ' + h + 'h';
+}
+
 function renderDashboard() {
   var pct = _row.ceiling > _row.seed
     ? Math.min(100, ((_row.value - _row.seed) / (_row.ceiling - _row.seed)) * 100)
@@ -1096,6 +1171,8 @@ function renderDashboard() {
       '</table>' +
     '</div>';
 
+  var _hitStats = _computeHitStats();
+
   return '<div class="section"><div class="sec-title">Pot Status</div>' +
     '<div style="background:#1e003a;border-radius:8px;height:10px;margin-bottom:12px;overflow:hidden">' +
     '<div style="background:linear-gradient(90deg,#ff4400,#ffdd00);height:100%;width:' + pct.toFixed(1) + '%;transition:width .5s"></div></div>' +
@@ -1106,6 +1183,8 @@ function renderDashboard() {
     '<div class="stat-card"><div class="stat-val">' + (_row.hit_count || 0) + '</div><div class="stat-lbl">Total Hits</div></div>' +
     '<div class="stat-card"><div class="stat-val" id="dash-conn">--</div><div class="stat-lbl">Connected / ' + CONN_LIMIT + '</div></div>' +
     '<div class="stat-card" id="armed-card" style="border-color:#ff4400"><div class="stat-val" id="armed-status" style="font-size:14px">READY</div><div class="stat-lbl">Force JP</div></div>' +
+    '<div class="stat-card"><div class="stat-val" style="font-size:16px">' + _fmtDuration(_hitStats.lastHitAgo) + '</div><div class="stat-lbl">Since Last Hit</div></div>' +
+    '<div class="stat-card"><div class="stat-val" style="font-size:16px">' + _fmtDuration(_hitStats.avgBetween) + '</div><div class="stat-lbl">Avg Time Between Hits</div></div>' +
     '</div></div>' +
     playerTable +
     '<div class="section"><div class="sec-title">Last Hit</div>' +
@@ -1116,6 +1195,18 @@ function renderDashboard() {
         '<div class="hit-meta">Bet: ' + _fmtMoney(Number(_hits[0].bet||0)) + ' &bull; ' + _balls(_hits[0].balls) + ' &bull; ' + _ts(_hits[0].created_at) + '</div>' +
         '<div class="hit-meta" style="color:#aaffcc">&#128100; ' + (_hits[0].player_label||'\u2014') + '</div></div>'
       : '<div style="color:var(--dim);font-size:12px">No hits recorded yet.</div>') +
+    '</div>' +
+    '<div class="section"><div class="sec-title">Hit Breakdown (last ' + _hits.length + ')</div>' +
+    (_hits.length === 0
+      ? '<div style="color:var(--dim);font-size:12px">No hits recorded yet.</div>'
+      : '<div class="stats-grid">' +
+        '<div class="stat-card" style="border-color:#ff4400"><div class="stat-val">' + _hitStats.counts.force + '</div><div class="stat-lbl">Force Jackpot</div></div>' +
+        '<div class="stat-card" style="border-color:#ffdd00"><div class="stat-val">' + _hitStats.counts.corporal + '</div><div class="stat-lbl">Corporal Stripes</div></div>' +
+        '<div class="stat-card" style="border-color:#00ff88"><div class="stat-val">' + _hitStats.counts.lazyT + '</div><div class="stat-lbl">Lazy-T</div></div>' +
+        (_hitStats.counts.other > 0
+          ? '<div class="stat-card"><div class="stat-val">' + _hitStats.counts.other + '</div><div class="stat-lbl">Other</div></div>'
+          : '') +
+        '</div>') +
     '</div>' +
     '<div class="section"><div class="sec-title">Connection</div>' +
     '<div class="row"><div><div class="row-lbl">Supabase Realtime</div><div class="row-sub">Pot syncs across all devices live</div></div>' +
