@@ -83,3 +83,17 @@ WAP Progressive Jackpot operator controller PWA. PIN-protected. Manages the wide
   WABC and/or Floor Manager being open no longer inflate Progressive
   Operator's connected-player count.
 - Cache bust: prog-op-v3.13
+
+### v3.14 — Fixed Missing _gameName() Function
+- _gameName() was called in 6 places (Realtime notification toasts, hit
+  history, presence player list) but NEVER DEFINED — every
+  progressive_commands/progressive_hits Realtime event threw
+  "ReferenceError: _gameName is not defined", crashing those callbacks.
+- Added _gameName() + PROG_GAME_TITLES lookup table (matches
+  progressive.js in game repos).
+- SEPARATE DATABASE ISSUE FOUND (not fixable from this repo): the
+  progressive_hit RPC function does not exist in Supabase at all
+  ("Could not find the function public.progressive_hit(reset_to) in the
+  schema cache"). This is the root cause of the pot never resetting after
+  jackpot wins. SQL to create it provided to Sasha for Supabase SQL Editor.
+- Cache bust: prog-op-v3.14

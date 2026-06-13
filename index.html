@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v3.13</div>
+  <div id="splash-ver">v3.14</div>
 </div>
 
 
@@ -465,6 +465,21 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
 /* ══════════════════════════════════════════════════════════════════════
    SUPABASE CONFIG — same values as progressive.js in each game
    ══════════════════════════════════════════════════════════════════════ */
+/* Game ID -> display title lookup. Must match PROG_GAME_TITLES in
+   progressive.js (game repos) — kept in sync manually. Referenced by
+   _gameName(), which was previously called throughout this file but
+   never defined, causing "ReferenceError: _gameName is not defined"
+   on every progressive_commands/progressive_hits Realtime event. */
+var PROG_GAME_TITLES = {
+  'straypups_1d': 'StrayPups Big Munny $1',
+  'straypups_5d': 'StrayPups Big Munny $5',
+  'turrelle':     'Turrelle Sisters',
+  'unknown':      'Unknown Game'
+};
+function _gameName(gameId){
+  return PROG_GAME_TITLES[gameId] || gameId || 'Unknown Game';
+}
+
 var SUPABASE_URL      = 'https://gdmmoeggkqsvqnqyrubx.supabase.co';
 var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkbW1vZWdna3FzdnFucXlydWJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDYzNTQsImV4cCI6MjA5NjM4MjM1NH0.i86afL3CMpmru4z3LZAbCJkxBiwo25QbwEji8tDBAis';
 var OP_PIN            = '7777'; // change this to your preferred PIN
