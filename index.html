@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v3.14</div>
+  <div id="splash-ver">v3.15</div>
 </div>
 
 
@@ -586,7 +586,15 @@ function initSupabase() {
     s.onload = function() {
     try {
       _setSplashStatus('Connecting to database…', '#ffaa00');
-      _client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      _client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { persistSession: false, detectSessionInUrl: false,
+            storage: {
+              getItem: function(key){ return null; },
+              setItem: function(key,value){},
+              removeItem: function(key){}
+            }
+          }
+        });
       window._wabcSupabaseClient = _client; /* v1.7 — shared client for wabc.js */
       fetchRow(function() {
         _connected = true;

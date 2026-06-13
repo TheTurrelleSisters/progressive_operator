@@ -97,3 +97,31 @@ WAP Progressive Jackpot operator controller PWA. PIN-protected. Manages the wide
   schema cache"). This is the root cause of the pot never resetting after
   jackpot wins. SQL to create it provided to Sasha for Supabase SQL Editor.
 - Cache bust: prog-op-v3.14
+
+### Service Worker + Supabase Client Hardening (this batch)
+- service-worker.js fetch handler rewritten with proper guards:
+  - Non-GET requests (POST/PATCH/PUT/DELETE) are no longer intercepted at
+    all -> eliminates "cache.put: Request method X is unsupported" errors
+    on every Supabase RPC/insert/update.
+  - ANY supabase.co request is passed straight to network, never cached ->
+    eliminates risk of stale cached API responses masking live DB changes,
+    and removes these requests from the JS/HTML cache-refresh branch.
+  - 206 Partial Content responses (audio/video range requests) are no
+    longer passed to cache.put -> eliminates "Partial response (206)
+    unsupported" errors.
+- createClient() calls now pass { auth: { persistSession:false,
+  detectSessionInUrl:false, storage: <in-memory no-op> } } — avoids
+  Supabase client touching localStorage at all, which browsers with
+  Tracking Prevention (Safari ITP, Samsung Browser) were silently
+  blocking ("Tracking Prevention blocked access to storage for
+  ...supabase-js...") and which also triggered "Multiple GoTrueClient
+  instances" warnings.
+These changes target the console error noise seen across every tool in
+this session's logs and may also help Realtime stability (all channels
+share one client/connection). 0-players root cause still unconfirmed —
+retest after this deploy with game + operator tool open simultaneously.
+
+KNOWN OPEN ISSUE (not yet investigated): both StrayPups games appear to be
+broadcasting DIFFERENT ball-call sequences again (regression) — possible
+WABC/local-vs-wide-area switching issue. To be investigated next session.
+

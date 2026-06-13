@@ -424,7 +424,15 @@ var Progressive = (function () {
   function init(onReady) {
     _loadSDK(function () {
       try {
-        _client    = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        _client    = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { persistSession: false, detectSessionInUrl: false,
+            storage: {
+              getItem: function(key){ return null; },
+              setItem: function(key,value){},
+              removeItem: function(key){}
+            }
+          }
+        });
         _connected = true;
         _fetchRow(function () {
           _subscribeMain();
