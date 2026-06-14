@@ -4,7 +4,7 @@
 
 ---
 
-## Current Version: v3.21 (cache: prog-op-v3.21)
+## Current Version: v3.8 (cache: prog-op-v3.8)
 
 ---
 
@@ -162,70 +162,12 @@ REVERTED ENTIRELY — back to one-shot subscribe + error-triggered retry.
 "0 players with active games" remains OPEN.
 Cache bust: see service-worker.js
 
-### v3.20 — Presence & Render Bug Fixes (6 bugs)
-**Presence double-render (root cause of `--` connected count):**
-- `_syncPresence()` called `_updatePresenceCounts()` (which itself calls
-  `renderTab()` + writes count to DOM), then immediately called `renderTab()`
-  again — nuking the count DOM writes before they painted. Removed the
-  redundant trailing `renderTab()` from `_syncPresence()`.
-- `renderDashboard()` hardcoded `--` for `#dash-conn`. Now inlines
-  `_presenceCount` so the count is correct on first paint every render.
-
-**Armed status not reflected on re-render:**
-- `renderDashboard()` always rendered the Force JP stat card as "READY"
-  regardless of `_forceIsArmed`. Now inlines the correct text + color from
-  state, consistent with how all other stat cards work.
-
-**`INACTIVE_MS` shadowed inside `renderDashboard()`:**
-- Local `var INACTIVE_MS = 60000` inside `renderDashboard()` silently
-  shadowed the global. Identical value for now, but would break silently
-  if the global threshold is ever tuned. Removed the local re-declaration.
-
-**`forceHit()` double-write on Force tab label:**
-- Set `.textContent = '&#9889; ARMED'` (renders as literal entity text)
-  then immediately overwrote with `.innerHTML = '&#9889; ARMED'`. Removed
-  the redundant `textContent` line; `innerHTML` is the correct setter here.
-
-**`resetPlayerRegistry()` didn't re-render after clearing maps:**
-- After resetting `_playerIdMap` and `_nextPlayerId`, the dashboard player
-  table still showed stale "Player N" labels until the next presence event.
-  Added `if (_activeTab === 'dashboard') renderTab()` for immediate feedback.
-
+### v3.20 — Connected Players now from player_registry
+Connected/Inactive counts and player lists now read from
+player_registry (durable DB table) instead of presence-lobby (ephemeral
+Realtime state, unreliable all session). "Connected" = last_seen within
+3 minutes; "Inactive" (no spin in 60s+) = last_seen 60s-3min ago. Polled
+every 5s. Requires the NEW touch_player_last_seen SQL RPC (see games
+PHASE_PLAN v5.84) and game build v5.84+ to keep last_seen fresh for
+nickname-less players too.
 Cache bust: prog-op-v3.20
-
-### v3.21 — CRITICAL: Presence State Never Populated on Subscribe (root cause of 0 players)
-The operator was calling `setTimeout(_updatePresenceCounts, 500)` in the
-SUBSCRIBED callback. `_updatePresenceCounts()` counts entries already in
-`_presenceState` — but `_presenceState` is only populated by `_syncPresence()`,
-which is only called from presence events (`sync`/`join`/`leave`).
-
-On Supabase free-tier, the `sync` event fires when the operator first joins
-the presence channel and sees existing members. But if the Realtime tenant
-was cold-starting or the event was delayed/dropped, `_presenceState` stayed
-`{}` forever — so `_updatePresenceCounts()` always counted 0 regardless of
-how many games were actually connected.
-
-**Fixes:**
-- SUBSCRIBED callback now calls `_syncPresence()` (which reads
-  `presenceCh.presenceState()` and rebuilds `_presenceState`) instead of
-  `_updatePresenceCounts()` (which only counts an already-stale cache).
-- Added a second `setTimeout(_syncPresence, 2000)` pass to cover the
-  free-tier cold-start window where the first sync may arrive late.
-- `startInactiveTimer()` now polls `_syncPresence()` every 3 seconds
-  instead of `_updatePresenceCounts()`, ensuring `_presenceState` is
-  always rebuilt from live channel state on every tick — not just when
-  presence events happen to fire.
-
-This is the actual root cause of the "0 CONNECTED DEVICES" bug shown in
-the screenshots, distinct from the double-render bug fixed in v3.20.
-Cache bust: prog-op-v3.21
-
----
-
-## Current Version: v3.21 (cache: prog-op-v3.21)
-
-## Pending
-- [ ] Connected players showing correctly — VERIFY after v3.21 deploy
-- [ ] Force jackpot end-to-end test
-- [ ] progressive_hits records writing correctly from games
-- [ ] Broadcast messages verified received by game clients

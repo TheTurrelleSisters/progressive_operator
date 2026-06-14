@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v3.21</div>
+  <div id="splash-ver">v3.20</div>
 </div>
 
 
@@ -495,6 +495,9 @@ var _pinBuf        = '';
 var _activeTab     = 'dashboard';
 var _presenceCount = 0;
 var _presenceState = {};   /* key → {gameId, joinedAt, lastSpin} */
+var _playerRegistry = [];  /* rows from player_registry table — durable, DB-backed */
+var PLAYER_ACTIVE_MS = 60 * 1000;   /* last_seen within this = active/spinning */
+var PLAYER_STALE_MS  = 180 * 1000;  /* last_seen older than this = drop entirely */
 var _forceIsArmed  = false;
 var _inactiveTimer = null;
 var _pollTimer     = null;
@@ -610,6 +613,7 @@ function initSupabase() {
         subscribePresence();
         subscribeCommands();
         startInactiveTimer();
+        startPlayerRegistryPolling();
         /* Short pause so user sees "Connected ✓" then splash dismisses to PIN */
         setTimeout(function() {
           if (typeof window.killSplash === 'function') window.killSplash();
@@ -718,8 +722,8 @@ function subscribePresence() {
       }
     });
     _updatePresenceCounts();
-    /* renderTab() is called inside _updatePresenceCounts() — do NOT call it
-       again here or it will overwrite the count DOM writes with a fresh '--'. */
+    /* Always re-render active tab — presence changes affect dashboard + settings */
+    try { renderTab(); } catch(e) {}
   }
 
   presenceCh
@@ -730,13 +734,8 @@ function subscribePresence() {
       if (status === 'SUBSCRIBED') {
         _presenceRetryDelay = 2000; /* reset backoff on success */
         presenceCh.track({ gameId: 'operator', joinedAt: new Date().toISOString(), lastSpin: null });
-        /* Call _syncPresence (not _updatePresenceCounts) so _presenceState is
-           actually populated from presenceState() before counting.
-           The 'sync' event fires reliably on initial subscribe, but on Supabase
-           free-tier cold-start it can be delayed or silent — this ensures we
-           always read the live state immediately after SUBSCRIBED. */
-        setTimeout(_syncPresence, 500);
-        setTimeout(_syncPresence, 2000); /* second pass covers free-tier cold-start delay */
+        /* Immediately sync so the count shows 0 (not --) on first connect */
+        setTimeout(_updatePresenceCounts, 500);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         /* Previously a ONE-SHOT subscribe — if the first attempt failed
            (e.g. during Supabase free-tier Realtime tenant cold-start),
@@ -764,28 +763,46 @@ function subscribePresence() {
 
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PLAYER REGISTRY — durable, DB-backed "connected players" source.
+   Replaces presence-lobby for all Connected/Inactive counts and player
+   lists. Polled every 5s; last_seen is touched by the game on every spin
+   (touch_player_last_seen RPC), regardless of nickname.
+   ══════════════════════════════════════════════════════════════════════ */
+function fetchPlayerRegistry() {
+  if (!_client) return;
+  _client.from('player_registry').select('*').then(function(res) {
+    if (res.error) { console.warn('[ProgOp] player_registry fetch error:', res.error.message); return; }
+    _playerRegistry = res.data || [];
+    _updatePresenceCounts();
+  });
+}
+
+function startPlayerRegistryPolling() {
+  fetchPlayerRegistry();
+  setInterval(fetchPlayerRegistry, 5000);
+}
+
+/* Rows still considered "connected" (last_seen within PLAYER_STALE_MS) */
+function _connectedPlayers() {
+  var now = Date.now();
+  return _playerRegistry.filter(function(p) {
+    if (!p.last_seen) return false;
+    return (now - new Date(p.last_seen).getTime()) < PLAYER_STALE_MS;
+  });
+}
+
 function _updatePresenceCounts() {
   var now      = Date.now();
   var total    = 0;
   var inactive = 0;
 
-  Object.keys(_presenceState).forEach(function(k) {
-    var p = _presenceState[k];
-    if (!p) return;
-    if (p.gameId === 'operator' || p.gameId === 'wabc_operator' || p.gameId === 'floor_operator') return;   /* skip all operator-tool sessions */
+  _playerRegistry.forEach(function(p) {
+    if (!p.last_seen) return;
+    var age = now - new Date(p.last_seen).getTime();
+    if (age >= PLAYER_STALE_MS) return; /* dropped — likely disconnected */
     total++;
-
-    var joinedAt = p.joinedAt ? new Date(p.joinedAt).getTime() : now;
-    var lastSpin = p.lastSpin ? new Date(p.lastSpin).getTime() : 0;
-    var connectedFor = now - joinedAt;
-
-    /* Only count as inactive if they've been connected ≥ 60 seconds */
-    /* AND haven't spun in the last 60 seconds                        */
-    if (connectedFor >= INACTIVE_MS) {
-      if (!lastSpin || (now - lastSpin) >= INACTIVE_MS) {
-        inactive++;
-      }
-    }
+    if (age >= PLAYER_ACTIVE_MS) inactive++; /* connected but no spin in 60s+ */
   });
 
   _presenceCount = total;
@@ -817,11 +834,10 @@ function _updatePresenceCounts() {
   }
 }
 
-/* Poll every 3s — call _syncPresence (not just _updatePresenceCounts) so
-   _presenceState is always rebuilt from live channel state, not a stale cache. */
+/* Poll every 10s to keep inactive count fresh against the 60-second threshold */
 function startInactiveTimer() {
   if (_inactiveTimer) clearInterval(_inactiveTimer);
-  _inactiveTimer = setInterval(_syncPresence, 3000);
+  _inactiveTimer = setInterval(_updatePresenceCounts, 3000); /* 3s — real-time presence updates */
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -829,12 +845,9 @@ function startInactiveTimer() {
    ══════════════════════════════════════════════════════════════════════ */
 function _getPlayerLabel(sessionKey) {
   if (!sessionKey) return '—';
-  /* Prefer lobby nickname from presence payload */
-  if (_presenceState[sessionKey] && _presenceState[sessionKey].nickname) {
-    return _presenceState[sessionKey].nickname;
-  }
-  var id = _playerIdMap[sessionKey];
-  return id ? 'Player ' + id : sessionKey.substr(0, 8);
+  var row = _playerRegistry.filter(function(p) { return p.session_key === sessionKey; })[0];
+  if (row) return row.nickname || ('Player ' + row.player_num);
+  return sessionKey.substr(0, 8);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1122,26 +1135,22 @@ function renderDashboard() {
 
   /* ── Build connected players table ── */
   var now = Date.now();
-  /* Use global INACTIVE_MS (60 000 ms) — do NOT redeclare locally */
+  var connPlayers = _connectedPlayers();
   var playerRows = '';
-  var playerKeys = Object.keys(_presenceState).filter(function(k) {
-    var _gid = _presenceState[k].gameId; return _gid !== 'operator' && _gid !== 'wabc_operator' && _gid !== 'floor_operator';
-  });
 
-  if (playerKeys.length === 0) {
+  if (connPlayers.length === 0) {
     playerRows = '<tr><td colspan="4" style="text-align:center;color:var(--dim);padding:10px;font-size:11px">No players connected</td></tr>';
   } else {
-    playerKeys.forEach(function(k) {
-      var p        = _presenceState[k];
-      var label    = p.nickname || p.playerLabel || _getPlayerLabel(k);
-      var game     = _gameName(p.gameId);
+    connPlayers.forEach(function(p) {
+      var label    = p.nickname || ('Player ' + p.player_num);
+      var game     = _gameName(p.game_id);
       var denom    = p.denom ? _fmtMoney(Number(p.denom)) : '\u2014';
-      var lastSpin = p.lastSpin ? new Date(p.lastSpin).getTime() : 0;
-      var secsSpin = lastSpin ? Math.floor((now - lastSpin) / 1000) : null;
-      var inactive = lastSpin ? ((now - lastSpin) >= INACTIVE_MS) : false;
-      var spinStr  = secsSpin === null ? '<span style="color:var(--dim)">\u2014</span>'
-                   : inactive          ? '<span style="color:#ff6600">' + Math.floor(secsSpin) + 's ago \u23f1</span>'
-                   :                     '<span style="color:#00ff88">' + secsSpin + 's ago</span>';
+      var age      = now - new Date(p.last_seen).getTime();
+      var secsSpin = Math.floor(age / 1000);
+      var inactive = age >= PLAYER_ACTIVE_MS;
+      var spinStr  = inactive
+                   ? '<span style="color:#ff6600">' + secsSpin + 's ago \u23f1</span>'
+                   : '<span style="color:#00ff88">' + secsSpin + 's ago</span>';
       var statusDot = inactive
         ? '<span style="color:#ff6600;font-size:16px">&#9679;</span>'
         : '<span style="color:#00ff88;font-size:16px">&#9679;</span>';
@@ -1158,7 +1167,7 @@ function renderDashboard() {
 
   var playerTable =
     '<div class="section">' +
-      '<div class="sec-title">&#128100; Connected Players (' + playerKeys.length + ')</div>' +
+      '<div class="sec-title">&#128100; Connected Players (' + connPlayers.length + ')</div>' +
       '<table style="width:100%;border-collapse:collapse">' +
         '<thead><tr style="border-bottom:1px solid #333">' +
           '<th style="padding:4px;font-size:9px;letter-spacing:1px;color:var(--dim);text-align:left;width:20px"></th>' +
@@ -1180,8 +1189,8 @@ function renderDashboard() {
     '<div class="stat-card"><div class="stat-val">' + _fmtMoney(Number(_row.ceiling)) + '</div><div class="stat-lbl">Must-Hit Cap</div></div>' +
     '<div class="stat-card"><div class="stat-val">' + ((_row.contrib_rate || 0) * 100).toFixed(1) + '%</div><div class="stat-lbl">Contrib Rate</div></div>' +
     '<div class="stat-card"><div class="stat-val">' + (_row.hit_count || 0) + '</div><div class="stat-lbl">Total Hits</div></div>' +
-    '<div class="stat-card"><div class="stat-val" id="dash-conn">' + _presenceCount + '</div><div class="stat-lbl">Connected / ' + CONN_LIMIT + '</div></div>' +
-    '<div class="stat-card" id="armed-card" style="border-color:#ff4400"><div class="stat-val" id="armed-status" style="font-size:14px;color:' + (_forceIsArmed ? '#ff4400' : '') + '">' + (_forceIsArmed ? 'ARMED' : 'READY') + '</div><div class="stat-lbl">Force JP</div></div>' +
+    '<div class="stat-card"><div class="stat-val" id="dash-conn">--</div><div class="stat-lbl">Connected / ' + CONN_LIMIT + '</div></div>' +
+    '<div class="stat-card" id="armed-card" style="border-color:#ff4400"><div class="stat-val" id="armed-status" style="font-size:14px">READY</div><div class="stat-lbl">Force JP</div></div>' +
     '<div class="stat-card"><div class="stat-val" style="font-size:16px">' + _fmtDuration(_hitStats.lastHitAgo) + '</div><div class="stat-lbl">Since Last Hit</div></div>' +
     '<div class="stat-card"><div class="stat-val" style="font-size:16px">' + _fmtDuration(_hitStats.avgBetween) + '</div><div class="stat-lbl">Avg Time Between Hits</div></div>' +
     '</div></div>' +
@@ -1354,6 +1363,7 @@ function forceHit() {
     var tabs = document.querySelectorAll('.tab');
     if (tabs[3]) {
       tabs[3].style.color = '#ff4400';
+      tabs[3].textContent = '&#9889; ARMED';
       tabs[3].innerHTML = '&#9889; ARMED';
     }
   });
@@ -1367,7 +1377,6 @@ function resetPlayerRegistry() {
     _playerIdMap   = {};
     _nextPlayerId  = 1;
     _audit('PLAYER IDS RESET', 'All player labels cleared');
-    if (_activeTab === 'dashboard') renderTab();
     toast('&#128100; Player IDs reset — Player 1 on next spin');
   });
 }
@@ -1425,6 +1434,6 @@ renderTab();
 <div style="position:fixed;bottom:2px;left:0;right:0;text-align:center;
 font-size:7px;color:rgba(255,215,0,0.18);letter-spacing:2px;pointer-events:none;
 z-index:1;font-family:Arial,sans-serif;font-weight:normal">
-GOLD COINS CASINO &bull; v3.21</div>
+GOLD COINS CASINO &bull; v2.7</div>
 </body>
 </html>
