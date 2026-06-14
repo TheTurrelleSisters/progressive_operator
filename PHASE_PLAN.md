@@ -138,3 +138,18 @@ WABC/local-vs-wide-area switching issue. To be investigated next session.
 - NOTE: progressive_operator/progressive.js is a STALE UNUSED FILE (not
   referenced by index.html) — candidate for removal, pending confirmation.
 - Cache bust: prog-op-v3.16
+
+### v3.17 — Removed Hit Breakdown Section
+Per Sasha: Corporal Stripes isn't a Progressive-jackpot concept, so
+categorizing hits by Force Jackpot/Corporal Stripes/Lazy-T on this
+dashboard didn't make sense. Removed the "Hit Breakdown" section entirely.
+"Since Last Hit" and "Avg Time Between Hits" cards (v3.16) are kept.
+Cache bust: prog-op-v3.17
+
+### v3.18 — Presence Heartbeat (zombie-channel fix)
+Same hypothesis as the games: a zombie presence channel
+(silent socket reconnect with no CHANNEL_ERROR/CLOSED) could leave this
+tool unable to see other presences with no visible error. Added a 60s
+heartbeat: fully removeChannel + recreate the presence channel on a fixed
+interval.
+Cache bust: prog-op-v3.18
