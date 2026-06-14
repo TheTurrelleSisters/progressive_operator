@@ -4,7 +4,7 @@
 
 ---
 
-## Current Version: v3.8 (cache: prog-op-v3.8)
+## Current Version: v3.20 (cache: prog-op-v3.20)
 
 ---
 
@@ -161,3 +161,45 @@ hitting free-tier Realtime rate limits via frequent channel churn.
 REVERTED ENTIRELY — back to one-shot subscribe + error-triggered retry.
 "0 players with active games" remains OPEN.
 Cache bust: see service-worker.js
+
+### v3.20 — Presence & Render Bug Fixes (6 bugs)
+**Presence double-render (root cause of `--` connected count):**
+- `_syncPresence()` called `_updatePresenceCounts()` (which itself calls
+  `renderTab()` + writes count to DOM), then immediately called `renderTab()`
+  again — nuking the count DOM writes before they painted. Removed the
+  redundant trailing `renderTab()` from `_syncPresence()`.
+- `renderDashboard()` hardcoded `--` for `#dash-conn`. Now inlines
+  `_presenceCount` so the count is correct on first paint every render.
+
+**Armed status not reflected on re-render:**
+- `renderDashboard()` always rendered the Force JP stat card as "READY"
+  regardless of `_forceIsArmed`. Now inlines the correct text + color from
+  state, consistent with how all other stat cards work.
+
+**`INACTIVE_MS` shadowed inside `renderDashboard()`:**
+- Local `var INACTIVE_MS = 60000` inside `renderDashboard()` silently
+  shadowed the global. Identical value for now, but would break silently
+  if the global threshold is ever tuned. Removed the local re-declaration.
+
+**`forceHit()` double-write on Force tab label:**
+- Set `.textContent = '&#9889; ARMED'` (renders as literal entity text)
+  then immediately overwrote with `.innerHTML = '&#9889; ARMED'`. Removed
+  the redundant `textContent` line; `innerHTML` is the correct setter here.
+
+**`resetPlayerRegistry()` didn't re-render after clearing maps:**
+- After resetting `_playerIdMap` and `_nextPlayerId`, the dashboard player
+  table still showed stale "Player N" labels until the next presence event.
+  Added `if (_activeTab === 'dashboard') renderTab()` for immediate feedback.
+
+Cache bust: prog-op-v3.20
+
+---
+
+## Current Version: v3.20 (cache: prog-op-v3.20)
+
+## Pending
+- [ ] Connected players showing correctly with multiple game clients
+- [ ] Force jackpot end-to-end test
+- [ ] progressive_hits records writing correctly from games
+- [ ] Broadcast messages verified received by game clients
+- [ ] "0 players with active games" root cause still unconfirmed
