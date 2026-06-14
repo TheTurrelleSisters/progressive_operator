@@ -171,3 +171,12 @@ every 5s. Requires the NEW touch_player_last_seen SQL RPC (see games
 PHASE_PLAN v5.84) and game build v5.84+ to keep last_seen fresh for
 nickname-less players too.
 Cache bust: prog-op-v3.20
+
+
+### v3.21 — Friendly game-name update (Stray Pups / Turrelle Sisters)
+- PROG_GAME_TITLES: 'StrayPups Big Munny $1'/'$5' -> 'Stray Pups Big Munny
+  $1'/'$5'; 'turrelle': 'Turrelle Sisters' -> 'The Turrelle Sisters Big
+  Munny'. Companion rename in both bingo games (v5.87) and tsbigmunny
+  (v8.2.2) -- kept in sync manually per the existing comment at this map's
+  definition.
+- No other changes. Cache bust: v3.21.
