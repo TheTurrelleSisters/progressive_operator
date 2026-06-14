@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v3.20</div>
+  <div id="splash-ver">v3.21</div>
 </div>
 
 
@@ -730,8 +730,13 @@ function subscribePresence() {
       if (status === 'SUBSCRIBED') {
         _presenceRetryDelay = 2000; /* reset backoff on success */
         presenceCh.track({ gameId: 'operator', joinedAt: new Date().toISOString(), lastSpin: null });
-        /* Immediately sync so the count shows 0 (not --) on first connect */
-        setTimeout(_updatePresenceCounts, 500);
+        /* Call _syncPresence (not _updatePresenceCounts) so _presenceState is
+           actually populated from presenceState() before counting.
+           The 'sync' event fires reliably on initial subscribe, but on Supabase
+           free-tier cold-start it can be delayed or silent — this ensures we
+           always read the live state immediately after SUBSCRIBED. */
+        setTimeout(_syncPresence, 500);
+        setTimeout(_syncPresence, 2000); /* second pass covers free-tier cold-start delay */
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         /* Previously a ONE-SHOT subscribe — if the first attempt failed
            (e.g. during Supabase free-tier Realtime tenant cold-start),
@@ -812,10 +817,11 @@ function _updatePresenceCounts() {
   }
 }
 
-/* Poll every 10s to keep inactive count fresh against the 60-second threshold */
+/* Poll every 3s — call _syncPresence (not just _updatePresenceCounts) so
+   _presenceState is always rebuilt from live channel state, not a stale cache. */
 function startInactiveTimer() {
   if (_inactiveTimer) clearInterval(_inactiveTimer);
-  _inactiveTimer = setInterval(_updatePresenceCounts, 3000); /* 3s — real-time presence updates */
+  _inactiveTimer = setInterval(_syncPresence, 3000);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1419,6 +1425,6 @@ renderTab();
 <div style="position:fixed;bottom:2px;left:0;right:0;text-align:center;
 font-size:7px;color:rgba(255,215,0,0.18);letter-spacing:2px;pointer-events:none;
 z-index:1;font-family:Arial,sans-serif;font-weight:normal">
-GOLD COINS CASINO &bull; v3.20</div>
+GOLD COINS CASINO &bull; v3.21</div>
 </body>
 </html>

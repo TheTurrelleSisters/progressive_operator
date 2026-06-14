@@ -4,7 +4,7 @@
 
 ---
 
-## Current Version: v3.20 (cache: prog-op-v3.20)
+## Current Version: v3.21 (cache: prog-op-v3.21)
 
 ---
 
@@ -193,13 +193,39 @@ Cache bust: see service-worker.js
 
 Cache bust: prog-op-v3.20
 
+### v3.21 — CRITICAL: Presence State Never Populated on Subscribe (root cause of 0 players)
+The operator was calling `setTimeout(_updatePresenceCounts, 500)` in the
+SUBSCRIBED callback. `_updatePresenceCounts()` counts entries already in
+`_presenceState` — but `_presenceState` is only populated by `_syncPresence()`,
+which is only called from presence events (`sync`/`join`/`leave`).
+
+On Supabase free-tier, the `sync` event fires when the operator first joins
+the presence channel and sees existing members. But if the Realtime tenant
+was cold-starting or the event was delayed/dropped, `_presenceState` stayed
+`{}` forever — so `_updatePresenceCounts()` always counted 0 regardless of
+how many games were actually connected.
+
+**Fixes:**
+- SUBSCRIBED callback now calls `_syncPresence()` (which reads
+  `presenceCh.presenceState()` and rebuilds `_presenceState`) instead of
+  `_updatePresenceCounts()` (which only counts an already-stale cache).
+- Added a second `setTimeout(_syncPresence, 2000)` pass to cover the
+  free-tier cold-start window where the first sync may arrive late.
+- `startInactiveTimer()` now polls `_syncPresence()` every 3 seconds
+  instead of `_updatePresenceCounts()`, ensuring `_presenceState` is
+  always rebuilt from live channel state on every tick — not just when
+  presence events happen to fire.
+
+This is the actual root cause of the "0 CONNECTED DEVICES" bug shown in
+the screenshots, distinct from the double-render bug fixed in v3.20.
+Cache bust: prog-op-v3.21
+
 ---
 
-## Current Version: v3.20 (cache: prog-op-v3.20)
+## Current Version: v3.21 (cache: prog-op-v3.21)
 
 ## Pending
-- [ ] Connected players showing correctly with multiple game clients
+- [ ] Connected players showing correctly — VERIFY after v3.21 deploy
 - [ ] Force jackpot end-to-end test
 - [ ] progressive_hits records writing correctly from games
 - [ ] Broadcast messages verified received by game clients
-- [ ] "0 players with active games" root cause still unconfirmed
