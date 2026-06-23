@@ -4,10 +4,10 @@
  * AUTO-UPDATE: Detects new version, clears old cache, reloads all clients silently.
  * Bump CACHE_VER on every release — everything else is automatic.
  */
-var CACHE_VER = 'prog-op-v3.24';
+var CACHE_VER = 'prog-op-v3.25';
 
 /* Files to pre-cache on install */
-var CACHE_URLS = ['./index.html','./manifest.json','./progressive.js','./icons/icon-192x192.png','./icons/icon-512x512.png'];
+var CACHE_URLS = ['./index.html','./manifest.json','./icons/icon-192x192.png','./icons/icon-512x512.png'];
 
 /* ── INSTALL: cache files + skip waiting immediately ── */
 self.addEventListener('install', function(e) {

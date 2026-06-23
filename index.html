@@ -361,7 +361,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     <div id="loading-text">Connecting&hellip;</div>
   </div>
 
-  <div id="splash-ver">v3.24</div>
+  <div id="splash-ver">v3.25</div>
 </div>
 
 
@@ -1230,7 +1230,7 @@ function renderDashboard() {
       '<div class="sec-title" style="color:' + armedColor + '">' + armedIcon + ' Jackpot Monitor</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
         '<div style="font-size:13px;font-weight:bold;color:' + armedColor + '">' + armedLabel + '</div>' +
-        '<button onclick="_checkArmedCommand();toast('Refreshed')" style="background:none;border:1px solid #444;color:var(--dim);font-size:10px;padding:4px 8px;border-radius:4px;cursor:pointer">&#8635; REFRESH</button>' +
+        '<button onclick="_checkArmedCommand();toast(\'Refreshed\')" style="background:none;border:1px solid #444;color:var(--dim);font-size:10px;padding:4px 8px;border-radius:4px;cursor:pointer">&#8635; REFRESH</button>' +
       '</div>' +
       armedDetail +
       '<div style="margin-top:10px">' +
@@ -1463,7 +1463,7 @@ function renderForce() {
     '<div style="border:2px solid ' + statusBord + ';background:' + statusBg + ';border-radius:10px;padding:14px;margin-bottom:14px">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
         '<div style="font-size:13px;font-weight:bold;color:' + statusColor + '">' + statusIcon + ' ' + statusTitle + '</div>' +
-        '<button onclick="_checkArmedCommand();fetchRow();toast('Refreshed')" ' +
+        '<button onclick="_checkArmedCommand();fetchRow();toast(\'Refreshed\')" ' +
           'style="background:none;border:1px solid #444;color:var(--dim);font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer">&#8635;</button>' +
       '</div>' +
       '<div style="font-size:11px;color:var(--dim);margin-bottom:10px">' + statusSub + '</div>' +
@@ -1523,7 +1523,7 @@ function renderForce() {
     '&#9888; Test tools only. Contributions and data refreshes are safe. Player ID reset affects all active sessions.' +
     '</div>' +
     '<button class="btn btn-gold btn-full" onclick="addTestContrib()">+ ADD $50 TEST CONTRIBUTION</button>' +
-    '<button class="btn btn-green btn-full" style="margin-top:10px" onclick="_checkArmedCommand();fetchRow();fetchHits();toast('Refreshed')">&#8635; REFRESH DATA</button>' +
+    '<button class="btn btn-green btn-full" style="margin-top:10px" onclick="_checkArmedCommand();fetchRow();fetchHits();toast(\'Refreshed\')">&#8635; REFRESH DATA</button>' +
     '<button class="btn btn-gold btn-full" style="margin-top:10px" onclick="resetPlayerRegistry()">&#128100; RESET PLAYER IDs</button>' +
     '</div>';
 

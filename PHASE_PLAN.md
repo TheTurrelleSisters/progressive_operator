@@ -180,3 +180,22 @@ Cache bust: prog-op-v3.20
   (v8.2.2) -- kept in sync manually per the existing comment at this map's
   definition.
 - No other changes. Cache bust: v3.21.
+
+---
+
+## v3.22 — Messages system migration to public.messages
+- `index.html`: `sendMessage()`, `fetchMessages()`, `deleteMessage()` all moved from `broadcast_messages` to `public.messages` table. Compose UI adds subject input field. Sent messages list shows subject, type icon, and dismiss count.
+- Cache: `prog-op-v3.22`
+
+## v3.23 — Jackpot Monitor + _checkArmedCommand
+- `index.html`: Added `_checkArmedCommand()` — polls `progressive_commands` on init and every 15s so operator always reflects live armed state regardless of when the page loaded. Added Jackpot Monitor panel to dashboard: armed command details (ID, triggered by, jackpot value, time armed), progress bar to `must_hit_by`, refresh button. `subscribeCommands()` now sets `_armedCommand` on INSERT/UPDATE.
+- Cache: `prog-op-v3.23`
+
+## v3.24 — Monitor tab redesign + Force JP removed
+- `index.html`: Force tab renamed to Monitor. Full redesign: live armed status panel, threshold progress bar (pot vs must_hit_by), recent hits feed, test tools section. `forceHit()` and `cancelForce()` removed — jackpot arming is DB-only via `trg_progressive_threshold`. Settings tab: Random Trigger Odds field removed (DB-managed), replaced with read-only must_hit_by display. `saveSettings()` no longer writes `trigger_odds`.
+- Cache: `prog-op-v3.24`
+
+## v3.25 — CRITICAL FIX: SW pre-cache non-fatal + syntax error fix
+- `service-worker.js`: Removed `./progressive.js` from `CACHE_URLS` (file does not exist in operator repo — caused hard SW install failure). Added `.catch()` to make pre-cache non-fatal.
+- `index.html`: Fixed 3 unescaped `toast('Refreshed')` calls inside single-quoted JS strings (caused `SyntaxError: Unexpected identifier 'Refreshed'` at line 1233, blocking page load).
+- Cache: `prog-op-v3.25`
